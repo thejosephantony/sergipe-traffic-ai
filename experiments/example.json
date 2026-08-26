@@ -1,0 +1,8 @@
+{
+  "name": "baseline-unbalanced-traffic",
+  "seed": 42,
+  "steps": 1000,
+  "arrival_probability_ns": 0.35,
+  "arrival_probability_ew": 0.20,
+  "controllers": ["fixed", "adaptive"]
+}

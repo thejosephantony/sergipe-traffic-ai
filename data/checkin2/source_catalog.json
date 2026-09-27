@@ -26,12 +26,14 @@
       "id": "openstreetmap_roads",
       "name": "OpenStreetMap",
       "type": "open_dataset",
-      "status": "planned_next_ingestion",
+      "status": "active_live_ingestion",
       "scope": "rede_viaria",
-      "endpoint": "https://www.openstreetmap.org/",
+      "endpoint": "https://overpass-api.de/api/interpreter",
       "license": "ODbL 1.0",
       "attribution": "© OpenStreetMap contributors",
-      "usage": "Rede viária, sentidos, nomes de vias e atributos cartográficos em etapa posterior."
+      "usage": "Rede viária real do entorno do cenário: geometria, nomes, tipo highway, sentidos e atributos viários.",
+      "provider": "Overpass API",
+      "note": "A rede viária vem do OSM; a demanda veicular permanece sintética."
     },
     {
       "id": "synthetic_demand",

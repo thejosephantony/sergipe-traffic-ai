@@ -8,6 +8,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from sergipe_traffic_ai.data_pipeline.osm import integrate_osm_network
+
 
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_SCENARIO = ROOT / "scenarios" / "aracaju_barao_augusto.json"
@@ -121,9 +123,16 @@ def preprocess_scenario(raw: dict[str, Any]) -> dict[str, Any]:
         "location": scenario["location"],
         "provenance": {
             "geography": "IBGE (ingestão opcional ao vivo)",
-            "road_network": "OpenStreetMap (planejado para próxima etapa)",
+            "road_network": "OpenStreetMap via Overpass API (integração ativa)",
             "traffic_demand": "sintético e reproduzível",
             "traffic_counts_real_world": False,
+        },
+        "road_network": {
+            "source": scenario.get("road_network", {}).get("source"),
+            "provider": scenario.get("road_network", {}).get("provider"),
+            "radius_m": scenario.get("road_network", {}).get("radius_m"),
+            "license": scenario.get("road_network", {}).get("license"),
+            "attribution": scenario.get("road_network", {}).get("attribution"),
         },
         "reproducibility": {
             "seed": int(scenario["seed"]),
@@ -227,6 +236,7 @@ def prepare_checkin2(
     catalog_path: Path = DEFAULT_CATALOG,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     fetch_geography: bool = False,
+    fetch_osm: bool = False,
 ) -> dict[str, Any]:
     raw_scenario = load_json(scenario_path)
     catalog = load_json(catalog_path)
@@ -239,6 +249,10 @@ def prepare_checkin2(
         "geography_ingestion": {
             "requested": fetch_geography,
             "results": [],
+        },
+        "osm_ingestion": {
+            "requested": fetch_osm,
+            "status": "not_requested",
         },
     }
 
@@ -274,6 +288,27 @@ def prepare_checkin2(
                     }
                 )
 
+    if fetch_osm:
+        try:
+            report["osm_ingestion"] = {
+                "requested": True,
+                **integrate_osm_network(
+                    raw_scenario,
+                    output_dir / "osm",
+                ),
+            }
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exc:
+            report["osm_ingestion"] = {
+                "requested": True,
+                "status": "unavailable",
+                "error": str(exc),
+            }
+
     processed_path = output_dir / "preprocessed_scenario.json"
     report_path = output_dir / "checkin2_report.json"
     write_json(processed_path, processed)
@@ -294,8 +329,11 @@ def print_summary(result: dict[str, Any]) -> None:
     print()
     print("1) FONTES DE DADOS")
     print("   • IBGE: malhas de Sergipe (UF 28) e Aracaju (2800308)")
-    print("   • OpenStreetMap: rede viária planejada para próxima ingestão")
+    print("   • OpenStreetMap: rede viária integrada via Overpass API")
     print("   • Demanda atual: sintética, configurada no cenário")
+    osm_status = result["report"]["osm_ingestion"].get("status")
+    if result["report"]["osm_ingestion"].get("requested"):
+        print(f"   • OSM nesta execução: {osm_status}")
     print()
     print("2) PRÉ-PROCESSAMENTO")
     for step in processed["preprocessing_steps"]:
@@ -348,6 +386,11 @@ def main() -> None:
         action="store_true",
         help="Tenta baixar GeoJSON oficial do IBGE para Sergipe e Aracaju.",
     )
+    parser.add_argument(
+        "--fetch-osm",
+        action="store_true",
+        help="Baixa e pré-processa a rede viária do OpenStreetMap via Overpass.",
+    )
     args = parser.parse_args()
 
     result = prepare_checkin2(
@@ -355,6 +398,7 @@ def main() -> None:
         catalog_path=args.catalog,
         output_dir=args.output_dir,
         fetch_geography=args.fetch_geography,
+        fetch_osm=args.fetch_osm,
     )
     print_summary(result)
 

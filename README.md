@@ -19,6 +19,7 @@ Comparar controladores semafóricos **fixos**, **adaptativos** e, em fases poste
 - telemetria e métricas;
 - visualização Pygame com dashboard e áudio opcional;
 - pipeline de dados do Check-in 2;
+- integração da rede viária do OpenStreetMap via Overpass API;
 - testes automatizados e workflow de CI.
 
 > O controlador adaptativo atual é baseado em regras. O controlador com IA/RL ainda é uma etapa posterior do projeto.
@@ -69,13 +70,21 @@ Execute:
 python -m sergipe_traffic_ai.data_pipeline.checkin2
 ```
 
-Para tentar baixar as malhas oficiais do IBGE:
+Para baixar e pré-processar a rede viária do OpenStreetMap:
 
 ```powershell
-python -m sergipe_traffic_ai.data_pipeline.checkin2 --fetch-geography
+python -m sergipe_traffic_ai.data_pipeline.checkin2 --fetch-osm
 ```
 
-O pipeline gera um relatório rastreável em `experiments/output/checkin2/`.
+Para executar IBGE + OSM na mesma demonstração:
+
+```powershell
+python -m sergipe_traffic_ai.data_pipeline.checkin2 --fetch-geography --fetch-osm
+```
+
+A integração OSM usa a Overpass API e gera um GeoJSON local com geometria e atributos como nome, tipo de via, sentido, número de faixas e velocidade máxima quando esses campos existem no OSM.
+
+O pipeline gera um relatório rastreável em `experiments/output/checkin2/`. A demanda veicular continua sintética nesta etapa; o OSM fornece a rede viária, não contagens de tráfego.
 
 Consulte `docs/CHECKIN2.md` para o roteiro completo da apresentação.
 

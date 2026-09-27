@@ -76,6 +76,16 @@ def load_scenario(path: str) -> dict:
         return json.load(file)
 
 
+def load_optional_json(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        with path.open("r", encoding="utf-8-sig") as file:
+            return json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
 def build_controller(name: str):
     if name == "fixed":
         return FixedTrafficController()
@@ -622,6 +632,7 @@ def draw_data_overlay(
     screen: pygame.Surface,
     fonts: dict[str, pygame.font.Font],
     scenario: dict,
+    osm_summary: dict | None,
 ) -> None:
     dim = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
     dim.fill((4, 10, 16, 205))
@@ -687,8 +698,12 @@ def draw_data_overlay(
         ),
         (
             "OpenStreetMap",
-            "rede viária • próxima ingestão • ODbL",
-            YELLOW,
+            (
+                f"rede integrada • {osm_summary.get('road_feature_count', 0)} trechos • ODbL"
+                if osm_summary
+                else "integração ativa • execute --fetch-osm • ODbL"
+            ),
+            GREEN if osm_summary else YELLOW,
         ),
         (
             "Demanda sintética",
@@ -828,11 +843,31 @@ def draw_data_overlay(
         YELLOW,
     )
 
+    if osm_summary:
+        pilot_names = osm_summary.get("pilot_road_names_found", [])
+        pilot_label = ", ".join(pilot_names[:2]) or "sem correspondência nominal"
+        draw_text(
+            screen,
+            fonts,
+            f"OSM carregado: {pilot_label}",
+            (140, 684),
+            "tiny",
+            GREEN,
+        )
+
     draw_text(
         screen,
         fonts,
-        "Pipeline executável: python -m sergipe_traffic_ai.data_pipeline.checkin2",
+        "Pipeline: python -m sergipe_traffic_ai.data_pipeline.checkin2 --fetch-osm",
         (140, 704),
+        "tiny",
+        MUTED,
+    )
+    draw_text(
+        screen,
+        fonts,
+        "Dados viários © OpenStreetMap contributors • ODbL 1.0",
+        (785, 704),
         "tiny",
         MUTED,
     )
@@ -1201,6 +1236,9 @@ def main() -> None:
     }
 
     scenario = load_scenario(str(scenario_path))
+    osm_summary = load_optional_json(
+        Path("experiments/output/checkin2/osm/osm_summary.json")
+    )
     simulator = TrafficDemandSimulator(scenario)
     controller_name = args.controller
     controller = build_controller(controller_name)
@@ -1323,6 +1361,7 @@ def main() -> None:
                 screen,
                 fonts,
                 scenario,
+                osm_summary,
             )
 
         pygame.display.flip()

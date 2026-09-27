@@ -218,3 +218,29 @@ def test_direction_split_is_normalized_per_axis():
     assert sim.direction_split[BARAO_WESTBOUND] == 0.25
     assert sim.direction_split[AUGUSTO_NORTHBOUND] == 0.25
     assert sim.direction_split[AUGUSTO_SOUTHBOUND] == 0.75
+
+
+def test_vehicle_already_in_intersection_does_not_move_back_on_red():
+    sim = TrafficDemandSimulator(scenario(duration_s=40.0))
+    sim.rate_barao_maynard = 0.0
+    sim.rate_augusto_franco = 0.0
+
+    vehicle = sim._spawn_vehicle(
+        BARAO_AXIS,
+        "Leste",
+        "car",
+        BARAO_EASTBOUND,
+    )
+    assert vehicle is not None
+
+    for _ in range(55):
+        sim.step("BARAO_GREEN")
+        if vehicle.position > 0:
+            break
+
+    assert vehicle.position > 0
+    position_after_entry = vehicle.position
+
+    sim.step("AUGUSTO_GREEN")
+
+    assert vehicle.position >= position_after_entry

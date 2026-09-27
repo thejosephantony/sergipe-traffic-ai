@@ -19,7 +19,8 @@ class TelemetryCollector:
         self.records.append(step_data)
 
     def export_to_csv(self, filepath: str):
-        if not self.records: return
+        if not self.records:
+            return
         fieldnames = list(self.records[0].keys())
         with open(filepath, mode="w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)

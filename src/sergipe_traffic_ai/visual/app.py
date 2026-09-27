@@ -1133,7 +1133,7 @@ def draw_panel(
     draw_text(
         screen,
         fonts,
-        "ESPAÇO Pausa • R Reset • 1/2 Controle • M Áudio",
+        "ESPAÇO Pausa • R Reset • 1/2 Controle • D Dados • M Áudio",
         (left + 12, 762),
         "tiny",
         MUTED,

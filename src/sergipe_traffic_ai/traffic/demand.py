@@ -7,6 +7,23 @@ from typing import Any, Dict, List
 BARAO_AXIS = "Av. Barão de Maruim / Des. Maynard"
 AUGUSTO_AXIS = "Av. Augusto Franco"
 
+BARAO_EASTBOUND = "barao_eastbound"
+BARAO_WESTBOUND = "barao_westbound"
+AUGUSTO_NORTHBOUND = "augusto_northbound"
+AUGUSTO_SOUTHBOUND = "augusto_southbound"
+
+MOVEMENTS_BY_AXIS = {
+    BARAO_AXIS: (BARAO_EASTBOUND, BARAO_WESTBOUND),
+    AUGUSTO_AXIS: (AUGUSTO_NORTHBOUND, AUGUSTO_SOUTHBOUND),
+}
+
+DEFAULT_DIRECTION_SPLIT = {
+    BARAO_EASTBOUND: 0.50,
+    BARAO_WESTBOUND: 0.50,
+    AUGUSTO_NORTHBOUND: 0.50,
+    AUGUSTO_SOUTHBOUND: 0.50,
+}
+
 VEHICLE_PROFILES = {
     "car": {
         "length_m": 4.5,
@@ -38,9 +55,17 @@ class Vehicle:
         origin_axis: str,
         destination: str,
         vehicle_type: str = "car",
+        movement: str | None = None,
     ):
         if vehicle_type not in VEHICLE_PROFILES:
             raise ValueError(f"Tipo de veículo desconhecido: {vehicle_type}")
+
+        valid_movements = MOVEMENTS_BY_AXIS[origin_axis]
+        selected_movement = movement or valid_movements[0]
+        if selected_movement not in valid_movements:
+            raise ValueError(
+                f"Movimento {selected_movement} incompatível com {origin_axis}"
+            )
 
         profile = VEHICLE_PROFILES[vehicle_type]
 
@@ -48,11 +73,14 @@ class Vehicle:
         self.origin_axis = origin_axis
         self.destination = destination
         self.vehicle_type = vehicle_type
+        self.movement = selected_movement
 
         self.length_m = float(profile["length_m"])
         self.desired_speed_m_s = float(profile["desired_speed_m_s"])
 
-        self.position = -120.0
+        # Coordenada longitudinal relativa à linha de retenção.
+        # 0 m = linha de retenção antes da faixa de pedestres.
+        self.position = -95.0
         self.speed = self.desired_speed_m_s
         self.state = "MOVING"
         self.wait_time_s = 0.0
@@ -62,12 +90,15 @@ class TrafficDemandSimulator:
     """
     Gerador de demanda + dinâmica veicular simplificada.
 
-    A posição é longitudinal em metros:
-    -120 m = entrada da aproximação
-       0 m = linha de parada
-      80 m = saída do cruzamento
+    Cada sentido possui sua própria aproximação/fila.
 
-    A composição da frota é configurável e, por padrão, sintética.
+    A posição longitudinal é relativa à linha de retenção:
+      -95 m = entrada da aproximação
+        0 m = linha de retenção antes da faixa de pedestres
+      +95 m = saída do cruzamento
+
+    A composição da frota e a divisão por sentido são sintéticas e
+    configuráveis no cenário.
     """
 
     def __init__(self, scenario_config: Dict[str, Any]):
@@ -77,15 +108,24 @@ class TrafficDemandSimulator:
         self.time_step_s = self.config.get("time_step_s", 0.2)
 
         demands = self.config.get("demand", {})
-        self.rate_barao_maynard = demands.get("axis_barao_maynard_rate", 0.80)
-        self.rate_augusto_franco = demands.get("axis_augusto_franco_rate", 0.75)
+        self.rate_barao_maynard = demands.get(
+            "axis_barao_maynard_rate",
+            0.80,
+        )
+        self.rate_augusto_franco = demands.get(
+            "axis_augusto_franco_rate",
+            0.75,
+        )
         self.vehicle_mix = self._normalize_vehicle_mix(
             demands.get("vehicle_mix", DEFAULT_VEHICLE_MIX)
         )
+        self.direction_split = self._normalize_direction_split(
+            demands.get("direction_split", DEFAULT_DIRECTION_SPLIT)
+        )
 
-        self.spawn_position_m = -120.0
+        self.spawn_position_m = -95.0
         self.stop_line_position_m = 0.0
-        self.exit_position_m = 80.0
+        self.exit_position_m = 95.0
         self.min_gap_m = 2.5
 
         self.rng = random.Random(self.seed)
@@ -113,6 +153,33 @@ class TrafficDemandSimulator:
             for vehicle_type, weight in filtered.items()
         }
 
+    @staticmethod
+    def _normalize_direction_split(
+        raw_split: Dict[str, Any],
+    ) -> Dict[str, float]:
+        normalized: Dict[str, float] = {}
+
+        for axis_name, movements in MOVEMENTS_BY_AXIS.items():
+            first, second = movements
+            first_weight = max(
+                0.0,
+                float(raw_split.get(first, DEFAULT_DIRECTION_SPLIT[first])),
+            )
+            second_weight = max(
+                0.0,
+                float(raw_split.get(second, DEFAULT_DIRECTION_SPLIT[second])),
+            )
+            total = first_weight + second_weight
+
+            if total <= 0:
+                normalized[first] = 0.5
+                normalized[second] = 0.5
+            else:
+                normalized[first] = first_weight / total
+                normalized[second] = second_weight / total
+
+        return normalized
+
     def reset(self):
         self.rng = random.Random(self.seed)
         self.current_time = 0.0
@@ -123,17 +190,20 @@ class TrafficDemandSimulator:
             vehicle_type: 0 for vehicle_type in VEHICLE_PROFILES
         }
 
-    def _axis_vehicles(self, axis_name: str) -> List[Vehicle]:
-        return [v for v in self.active_vehicles if v.origin_axis == axis_name]
+    def _movement_vehicles(self, movement: str) -> List[Vehicle]:
+        return [v for v in self.active_vehicles if v.movement == movement]
 
-    def _can_spawn(self, axis_name: str) -> bool:
-        vehicles = self._axis_vehicles(axis_name)
+    def _can_spawn(self, movement: str) -> bool:
+        vehicles = self._movement_vehicles(movement)
         if not vehicles:
             return True
 
         rear_vehicle = min(vehicles, key=lambda v: v.position)
         minimum_spacing = rear_vehicle.length_m + self.min_gap_m
-        return rear_vehicle.position > self.spawn_position_m + minimum_spacing
+        return (
+            rear_vehicle.position
+            > self.spawn_position_m + minimum_spacing
+        )
 
     def _sample_vehicle_type(self) -> str:
         threshold = self.rng.random()
@@ -151,8 +221,17 @@ class TrafficDemandSimulator:
         axis_name: str,
         destination: str,
         vehicle_type: str | None = None,
+        movement: str | None = None,
     ) -> Vehicle | None:
-        if not self._can_spawn(axis_name):
+        valid_movements = MOVEMENTS_BY_AXIS[axis_name]
+        selected_movement = movement or valid_movements[0]
+
+        if selected_movement not in valid_movements:
+            raise ValueError(
+                f"Movimento {selected_movement} incompatível com {axis_name}"
+            )
+
+        if not self._can_spawn(selected_movement):
             return None
 
         selected_type = vehicle_type or self._sample_vehicle_type()
@@ -162,21 +241,67 @@ class TrafficDemandSimulator:
             axis_name,
             destination,
             selected_type,
+            selected_movement,
         )
+        vehicle.position = self.spawn_position_m
         self.active_vehicles.append(vehicle)
         return vehicle
 
+    def _generate_movement_arrival(
+        self,
+        axis_name: str,
+        movement: str,
+        axis_rate: float,
+        destination: str,
+    ) -> Vehicle | None:
+        movement_rate = axis_rate * self.direction_split[movement]
+        if self.rng.random() >= movement_rate * self.time_step_s:
+            return None
+
+        return self._spawn_vehicle(
+            axis_name,
+            destination,
+            movement=movement,
+        )
+
     def generate_vehicles_step(self) -> List[Vehicle]:
-        """Gera novas chegadas uma única vez para o passo atual."""
+        """Gera chegadas independentes para os quatro sentidos."""
         new_vehicles: List[Vehicle] = []
 
-        if self.rng.random() < (self.rate_barao_maynard * self.time_step_s):
-            vehicle = self._spawn_vehicle(BARAO_AXIS, "Centro/Oeste")
-            if vehicle is not None:
-                new_vehicles.append(vehicle)
+        arrivals = (
+            (
+                BARAO_AXIS,
+                BARAO_EASTBOUND,
+                self.rate_barao_maynard,
+                "Leste",
+            ),
+            (
+                BARAO_AXIS,
+                BARAO_WESTBOUND,
+                self.rate_barao_maynard,
+                "Oeste",
+            ),
+            (
+                AUGUSTO_AXIS,
+                AUGUSTO_NORTHBOUND,
+                self.rate_augusto_franco,
+                "Norte",
+            ),
+            (
+                AUGUSTO_AXIS,
+                AUGUSTO_SOUTHBOUND,
+                self.rate_augusto_franco,
+                "Sul",
+            ),
+        )
 
-        if self.rng.random() < (self.rate_augusto_franco * self.time_step_s):
-            vehicle = self._spawn_vehicle(AUGUSTO_AXIS, "Sul/Norte")
+        for axis_name, movement, axis_rate, destination in arrivals:
+            vehicle = self._generate_movement_arrival(
+                axis_name,
+                movement,
+                axis_rate,
+                destination,
+            )
             if vehicle is not None:
                 new_vehicles.append(vehicle)
 
@@ -190,9 +315,14 @@ class TrafficDemandSimulator:
             return phase == "BARAO_GREEN"
         return phase == "AUGUSTO_GREEN"
 
-    def _update_axis(self, axis_name: str, phase: str | None):
+    def _update_movement(
+        self,
+        axis_name: str,
+        movement: str,
+        phase: str | None,
+    ):
         vehicles = sorted(
-            self._axis_vehicles(axis_name),
+            self._movement_vehicles(movement),
             key=lambda vehicle: vehicle.position,
             reverse=True,
         )
@@ -210,7 +340,11 @@ class TrafficDemandSimulator:
                     else self.stop_line_position_m
                 )
             else:
-                limit = leader.position - leader.length_m - self.min_gap_m
+                limit = (
+                    leader.position
+                    - leader.length_m
+                    - self.min_gap_m
+                )
 
             requested_position = (
                 vehicle.position
@@ -244,38 +378,67 @@ class TrafficDemandSimulator:
         if self.current_time >= self.duration_s:
             return False
 
-        self._update_axis(BARAO_AXIS, current_phase)
-        self._update_axis(AUGUSTO_AXIS, current_phase)
+        for axis_name, movements in MOVEMENTS_BY_AXIS.items():
+            for movement in movements:
+                self._update_movement(
+                    axis_name,
+                    movement,
+                    current_phase,
+                )
 
         remaining: List[Vehicle] = []
         for vehicle in self.active_vehicles:
             if vehicle.position >= self.exit_position_m - 1e-9:
                 vehicle.state = "COMPLETED"
                 self.completed_vehicles_count += 1
-                self.completed_vehicles_by_type[vehicle.vehicle_type] += 1
+                self.completed_vehicles_by_type[
+                    vehicle.vehicle_type
+                ] += 1
             else:
                 remaining.append(vehicle)
         self.active_vehicles = remaining
 
-        self.current_time = round(self.current_time + self.time_step_s, 2)
+        self.current_time = round(
+            self.current_time + self.time_step_s,
+            2,
+        )
         return self.current_time < self.duration_s
 
-    def queue_length(self, axis_name: str) -> int:
+    def queue_length(
+        self,
+        axis_name: str,
+        movement: str | None = None,
+    ) -> int:
         return sum(
             1
             for vehicle in self.active_vehicles
-            if vehicle.origin_axis == axis_name and vehicle.state == "QUEUED"
+            if vehicle.origin_axis == axis_name
+            and vehicle.state == "QUEUED"
+            and (movement is None or vehicle.movement == movement)
         )
 
-    def average_wait(self, axis_name: str | None = None) -> float:
+    def average_wait(
+        self,
+        axis_name: str | None = None,
+        movement: str | None = None,
+    ) -> float:
         vehicles = self.active_vehicles
         if axis_name is not None:
             vehicles = [
-                v for v in vehicles if v.origin_axis == axis_name
+                v
+                for v in vehicles
+                if v.origin_axis == axis_name
+            ]
+        if movement is not None:
+            vehicles = [
+                v for v in vehicles if v.movement == movement
             ]
         if not vehicles:
             return 0.0
-        return sum(v.wait_time_s for v in vehicles) / len(vehicles)
+        return (
+            sum(v.wait_time_s for v in vehicles)
+            / len(vehicles)
+        )
 
     def active_count_by_type(self, vehicle_type: str) -> int:
         return sum(

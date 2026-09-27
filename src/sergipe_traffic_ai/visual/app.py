@@ -901,9 +901,11 @@ def draw_panel(
 
     state = "PAUSADO" if paused else f"{speed_multiplier:g}×"
     audio_state = "ÁUDIO ON" if audio_enabled else "ÁUDIO OFF"
+    audio_color = GREEN if audio_enabled else SUBTLE
+
     draw_elevated_rect(
         screen,
-        pygame.Rect(left, 756, width, 42),
+        pygame.Rect(left, 752, width, 56),
         SURFACE_2,
         10,
         BORDER,
@@ -911,13 +913,26 @@ def draw_panel(
     draw_text(
         screen,
         fonts,
-        (
-            f"ESPAÇO pausa • R reset • 1/2 controle • "
-            f"M áudio • ↑↓ velocidade • {state} • {audio_state}"
-        ),
-        (left + 11, 769),
+        "ESPAÇO Pausa • R Reset • 1/2 Controle • M Áudio",
+        (left + 12, 762),
         "tiny",
         MUTED,
+    )
+    draw_text(
+        screen,
+        fonts,
+        f"↑↓ Velocidade • {state}",
+        (left + 12, 784),
+        "tiny",
+        MUTED,
+    )
+    draw_text(
+        screen,
+        fonts,
+        audio_state,
+        (left + width - 82, 784),
+        "tiny",
+        audio_color,
     )
 
 

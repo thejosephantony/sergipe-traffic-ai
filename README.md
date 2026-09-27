@@ -59,11 +59,11 @@ Controles principais:
 - `1`: baseline fixo;
 - `2`: adaptativo por regras;
 - `D`: tela de Dados & Pré-processamento do Check-in 2;
-- `G`: alterna entre mapa OpenStreetMap e visual esquemático;
+- `G`: mostra/oculta o painel contextual do OpenStreetMap;
 - `M`: liga/desliga áudio;
 - `↑ / ↓`: velocidade da simulação.
 
-Quando `experiments/output/checkin2/osm/osm_road_network.geojson` existe, o Pygame inicia no **modo OSM**. A rede viária real é projetada para a área de simulação e os veículos são orientados pelos eixos identificados no OpenStreetMap.
+Quando `experiments/output/checkin2/osm/osm_road_network.geojson` existe, o Pygame exibe um **painel contextual OSM** com a rede viária real do entorno. A simulação operacional permanece no cruzamento esquemático ampliado, preservando legibilidade de veículos, faixas, semáforos e filas.
 
 ## Check-in 2 — dados e pré-processamento
 
@@ -85,7 +85,7 @@ Para executar IBGE + OSM na mesma demonstração:
 python -m sergipe_traffic_ai.data_pipeline.checkin2 --fetch-geography --fetch-osm
 ```
 
-A integração OSM usa a Overpass API e gera um GeoJSON local com geometria e atributos como nome, tipo de via, sentido, número de faixas e velocidade máxima quando esses campos existem no OSM. Esse GeoJSON também é usado pelo Pygame como camada cartográfica quando disponível.
+A integração OSM usa a Overpass API e gera um GeoJSON local com geometria e atributos como nome, tipo de via, sentido, número de faixas e velocidade máxima quando esses campos existem no OSM. Esse GeoJSON também é usado pelo Pygame como contexto cartográfico quando disponível, sem substituir a representação operacional do cruzamento.
 
 O pipeline gera um relatório rastreável em `experiments/output/checkin2/`. A demanda veicular continua sintética nesta etapa; o OSM fornece a rede viária, não contagens de tráfego.
 

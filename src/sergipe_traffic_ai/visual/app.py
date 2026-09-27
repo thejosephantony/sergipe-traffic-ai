@@ -18,6 +18,7 @@ from sergipe_traffic_ai.traffic.demand import (
     BARAO_WESTBOUND,
     TrafficDemandSimulator,
 )
+from sergipe_traffic_ai.visual.audio import AudioManager
 
 
 WIDTH = 1440
@@ -60,6 +61,11 @@ CAR_B = ORANGE
 VEHICLE_CAR = (70, 155, 225)
 VEHICLE_MOTORCYCLE = (238, 190, 70)
 VEHICLE_BUS = (84, 190, 130)
+
+BUILDING = (20, 37, 51)
+BUILDING_EDGE = (38, 60, 75)
+VEGETATION = (42, 101, 79)
+GLOW_ALPHA = 52
 
 CENTER_X = 505
 CENTER_Y = 430
@@ -151,6 +157,115 @@ def rounded_rect(
             rect,
             border_width,
             border_radius=radius,
+        )
+
+
+def draw_elevated_rect(
+    screen: pygame.Surface,
+    rect: pygame.Rect,
+    color: tuple[int, int, int],
+    radius: int = 12,
+    border_color: tuple[int, int, int] = BORDER,
+) -> None:
+    shadow = rect.move(0, 4)
+    pygame.draw.rect(
+        screen,
+        (7, 15, 23),
+        shadow,
+        border_radius=radius,
+    )
+    rounded_rect(
+        screen,
+        rect,
+        color,
+        radius,
+        border_color,
+    )
+
+
+def draw_urban_context(screen: pygame.Surface) -> None:
+    blocks = [
+        pygame.Rect(18, 104, 360, 210),
+        pygame.Rect(630, 104, 370, 210),
+        pygame.Rect(18, 548, 360, 242),
+        pygame.Rect(630, 548, 370, 242),
+    ]
+
+    for block in blocks:
+        pygame.draw.rect(
+            screen,
+            BUILDING,
+            block,
+            border_radius=18,
+        )
+        pygame.draw.rect(
+            screen,
+            BUILDING_EDGE,
+            block,
+            1,
+            border_radius=18,
+        )
+
+    building_rects = [
+        pygame.Rect(690, 130, 110, 62),
+        pygame.Rect(820, 130, 142, 62),
+        pygame.Rect(680, 220, 126, 64),
+        pygame.Rect(826, 220, 136, 64),
+        pygame.Rect(52, 615, 130, 70),
+        pygame.Rect(205, 615, 130, 70),
+        pygame.Rect(690, 615, 122, 70),
+        pygame.Rect(835, 615, 128, 70),
+    ]
+
+    for building in building_rects:
+        pygame.draw.rect(
+            screen,
+            (28, 48, 63),
+            building,
+            border_radius=8,
+        )
+        pygame.draw.rect(
+            screen,
+            BUILDING_EDGE,
+            building,
+            1,
+            border_radius=8,
+        )
+
+        for window_x in range(
+            building.x + 14,
+            building.right - 8,
+            24,
+        ):
+            pygame.draw.rect(
+                screen,
+                (57, 84, 99),
+                pygame.Rect(
+                    window_x,
+                    building.y + 15,
+                    9,
+                    8,
+                ),
+                border_radius=2,
+            )
+
+    tree_positions = [
+        (650, 145), (650, 260), (975, 160), (975, 270),
+        (42, 585), (350, 590), (650, 590), (982, 590),
+        (42, 745), (350, 745), (650, 745), (982, 745),
+    ]
+    for position in tree_positions:
+        pygame.draw.circle(
+            screen,
+            (23, 49, 42),
+            (position[0] + 2, position[1] + 3),
+            10,
+        )
+        pygame.draw.circle(
+            screen,
+            VEGETATION,
+            position,
+            9,
         )
 
 
@@ -314,6 +429,8 @@ def draw_road(
         pygame.Rect(0, HEADER_HEIGHT, SIM_WIDTH, HEIGHT - HEADER_HEIGHT),
     )
 
+    draw_urban_context(screen)
+
     # Quadras / calçadas
     pygame.draw.rect(screen, SIDEWALK, pygame.Rect(0, 326, SIM_WIDTH, 208))
     pygame.draw.rect(screen, SIDEWALK, pygame.Rect(401, HEADER_HEIGHT, 208, HEIGHT - HEADER_HEIGHT))
@@ -327,6 +444,20 @@ def draw_road(
     pygame.draw.line(screen, ROAD_EDGE, (0, 518), (SIM_WIDTH, 518), 2)
     pygame.draw.line(screen, ROAD_EDGE, (417, HEADER_HEIGHT), (417, HEIGHT), 2)
     pygame.draw.line(screen, ROAD_EDGE, (593, HEADER_HEIGHT), (593, HEIGHT), 2)
+
+    # Zona de conflito do cruzamento
+    conflict_zone = pygame.Rect(417, 342, 176, 176)
+    pygame.draw.rect(
+        screen,
+        (50, 57, 63),
+        conflict_zone,
+    )
+    pygame.draw.rect(
+        screen,
+        (82, 92, 99),
+        conflict_zone,
+        2,
+    )
 
     # Divisão dos sentidos
     for x in range(10, SIM_WIDTH - 20, 48):
@@ -443,7 +574,23 @@ def draw_traffic_light(
 
     for center, name in zip(centers, ("red", "yellow", "green")):
         pygame.draw.circle(screen, (8, 12, 15), center, 11)
+
+        if active == name:
+            glow = pygame.Surface((54, 54), pygame.SRCALPHA)
+            glow_color = (*colors[name], GLOW_ALPHA)
+            pygame.draw.circle(glow, glow_color, (27, 27), 22)
+            screen.blit(
+                glow,
+                (center[0] - 27, center[1] - 27),
+            )
+
         pygame.draw.circle(screen, colors[name], center, 8)
+        pygame.draw.circle(
+            screen,
+            (255, 255, 255),
+            (center[0] - 2, center[1] - 2),
+            2,
+        )
 
 
 def draw_signals(screen: pygame.Surface, phase: str) -> None:
@@ -573,7 +720,7 @@ def draw_metric_card(
     value: str,
     accent: tuple[int, int, int] = ACCENT,
 ) -> None:
-    rounded_rect(screen, rect, CARD, 12, BORDER)
+    draw_elevated_rect(screen, rect, CARD, 12, BORDER)
     pygame.draw.rect(
         screen,
         accent,
@@ -590,6 +737,7 @@ def draw_queue_chart(
     rect: pygame.Rect,
     barao_history: deque[int],
     augusto_history: deque[int],
+    audio_enabled: bool,
 ) -> None:
     rounded_rect(screen, rect, CARD, 12, BORDER)
     draw_text(screen, fonts, "FILAS AO VIVO", (rect.x + 16, rect.y + 12), "metric_label", MUTED)
@@ -665,7 +813,13 @@ def draw_panel(
         ("Fase de segurança", MUTED),
     )
 
-    rounded_rect(screen, pygame.Rect(left, 107, width, 76), CARD_ALT, 12, BORDER)
+    draw_elevated_rect(
+        screen,
+        pygame.Rect(left, 107, width, 76),
+        CARD_ALT,
+        12,
+        BORDER,
+    )
     draw_text(screen, fonts, "CONTROLADOR", (left + 16, 119), "metric_label", MUTED)
     draw_text(screen, fonts, controller_label, (left + 16, 141), "body_bold", TEXT)
     draw_text(
@@ -729,7 +883,13 @@ def draw_panel(
         augusto_history,
     )
 
-    rounded_rect(screen, pygame.Rect(left, 660, width, 82), CARD_ALT, 12, BORDER)
+    draw_elevated_rect(
+        screen,
+        pygame.Rect(left, 660, width, 82),
+        CARD_ALT,
+        12,
+        BORDER,
+    )
     draw_text(screen, fonts, "FROTA ATIVA • DADOS SINTÉTICOS", (left + 16, 672), "metric_label", MUTED)
     fleet_text = (
         f"Carros {simulator.active_count_by_type('car')}  •  "
@@ -740,11 +900,21 @@ def draw_panel(
     draw_text(screen, fonts, f"Seed {seed} • composição configurável no cenário", (left + 16, 718), "tiny", MUTED)
 
     state = "PAUSADO" if paused else f"{speed_multiplier:g}×"
-    rounded_rect(screen, pygame.Rect(left, 756, width, 42), SURFACE_2, 10, BORDER)
+    audio_state = "ÁUDIO ON" if audio_enabled else "ÁUDIO OFF"
+    draw_elevated_rect(
+        screen,
+        pygame.Rect(left, 756, width, 42),
+        SURFACE_2,
+        10,
+        BORDER,
+    )
     draw_text(
         screen,
         fonts,
-        f"ESPAÇO pausa • R reset • 1 fixo • 2 adaptativo • ↑↓ velocidade • {state}",
+        (
+            f"ESPAÇO pausa • R reset • 1/2 controle • "
+            f"M áudio • ↑↓ velocidade • {state} • {audio_state}"
+        ),
         (left + 11, 769),
         "tiny",
         MUTED,
@@ -765,7 +935,15 @@ def main() -> None:
     if not scenario_path.exists():
         raise FileNotFoundError(f"Cenário não encontrado: {scenario_path}")
 
+    pygame.mixer.pre_init(
+        frequency=44_100,
+        size=-16,
+        channels=1,
+        buffer=512,
+    )
     pygame.init()
+    audio = AudioManager()
+
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Sergipe Traffic AI • Laboratório de Controle Semafórico")
     clock = pygame.time.Clock()
@@ -814,6 +992,7 @@ def main() -> None:
                 elif event.key == pygame.K_SPACE:
                     paused = not paused
                 elif event.key == pygame.K_r:
+                    audio.play_ui()
                     simulator.reset()
                     controller.reset(scenario)
                     current_phase = "BARAO_GREEN"
@@ -823,15 +1002,24 @@ def main() -> None:
                     augusto_history.append(0)
                     last_history_second = -1
                 elif event.key == pygame.K_1:
+                    audio.play_ui()
                     controller_name = "fixed"
                     controller = build_controller(controller_name)
                     controller.reset(scenario)
                 elif event.key == pygame.K_2:
+                    audio.play_ui()
                     controller_name = "adaptive"
                     controller = build_controller(controller_name)
                     controller.reset(scenario)
+                elif event.key == pygame.K_m:
+                    audio.toggle()
+                    if audio.is_enabled:
+                        audio.play_ui()
                 elif event.key == pygame.K_UP:
-                    speed_multiplier = min(8.0, speed_multiplier * 2.0)
+                    speed_multiplier = min(
+                        8.0,
+                        speed_multiplier * 2.0,
+                    )
                 elif event.key == pygame.K_DOWN:
                     speed_multiplier = max(0.5, speed_multiplier / 2.0)
 
@@ -841,7 +1029,14 @@ def main() -> None:
             while accumulator >= simulator.time_step_s:
                 simulator.generate_vehicles_step()
                 observation = axis_observation(simulator)
-                current_phase = controller.decide(observation, simulator.current_time)
+                previous_phase = current_phase
+                current_phase = controller.decide(
+                    observation,
+                    simulator.current_time,
+                )
+                if current_phase != previous_phase:
+                    audio.play_phase(current_phase)
+
                 simulator.step(current_phase)
                 accumulator -= simulator.time_step_s
 
@@ -878,6 +1073,7 @@ def main() -> None:
             scenario,
             barao_history,
             augusto_history,
+            audio.is_enabled,
         )
 
         pygame.display.flip()

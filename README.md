@@ -8,16 +8,20 @@ Comparar controladores semafóricos **fixos**, **adaptativos** e, em fases poste
 
 ## Estado atual
 
-**v0.1 — MVP estrutural**
+**v0.3 — protótipo visual funcional / preparação experimental**
 
-- domínio básico de veículos, vias, interseção e semáforos;
-- simulador discreto simples e reproduzível;
-- controlador de tempo fixo;
+- simulador discreto reproduzível por seed;
+- tráfego bidirecional com carros, motos e ônibus;
+- parada antes da faixa de pedestres;
+- fases verde, amarelo e todos-vermelhos;
+- controlador de tempo fixo (baseline);
 - controlador adaptativo heurístico;
-- coleta de métricas;
-- cenários configuráveis;
-- testes automatizados;
-- workflow de CI no GitHub Actions.
+- telemetria e métricas;
+- visualização Pygame com dashboard e áudio opcional;
+- pipeline de dados do Check-in 2;
+- testes automatizados e workflow de CI.
+
+> O controlador adaptativo atual é baseado em regras. O controlador com IA/RL ainda é uma etapa posterior do projeto.
 
 ## Arquitetura
 
@@ -41,12 +45,39 @@ source .venv/bin/activate      # Linux/macOS
 pip install -e .[dev]
 ```
 
-## Executar o MVP
+## Executar o protótipo visual
 
-```bash
-python -m sergipe_traffic_ai --controller fixed --steps 300 --seed 42
-python -m sergipe_traffic_ai --controller adaptive --steps 300 --seed 42
+```powershell
+python -m sergipe_traffic_ai.visual.app
 ```
+
+Controles principais:
+
+- `ESPAÇO`: pausa;
+- `R`: reset;
+- `1`: baseline fixo;
+- `2`: adaptativo por regras;
+- `D`: tela de Dados & Pré-processamento do Check-in 2;
+- `M`: liga/desliga áudio;
+- `↑ / ↓`: velocidade da simulação.
+
+## Check-in 2 — dados e pré-processamento
+
+Execute:
+
+```powershell
+python -m sergipe_traffic_ai.data_pipeline.checkin2
+```
+
+Para tentar baixar as malhas oficiais do IBGE:
+
+```powershell
+python -m sergipe_traffic_ai.data_pipeline.checkin2 --fetch-geography
+```
+
+O pipeline gera um relatório rastreável em `experiments/output/checkin2/`.
+
+Consulte `docs/CHECKIN2.md` para o roteiro completo da apresentação.
 
 Exemplo de saída:
 

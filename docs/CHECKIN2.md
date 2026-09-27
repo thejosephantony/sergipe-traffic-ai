@@ -152,7 +152,7 @@ python -m sergipe_traffic_ai.visual.app
 
 Use a tecla **D** para abrir o resumo de **Dados & Pré-processamento** durante a apresentação.
 
-Se o GeoJSON do OpenStreetMap já tiver sido gerado, o Pygame inicia em **modo OSM**. A tecla **G** alterna entre a rede viária real projetada e a representação esquemática anterior. Os veículos são alinhados aos eixos viários identificados pelo nome das vias do cenário piloto.
+Se o GeoJSON do OpenStreetMap já tiver sido gerado, o Pygame mostra um **painel contextual OSM** com a rede viária real do entorno. A tecla **G** mostra ou oculta esse contexto. O cruzamento principal permanece esquemático e ampliado porque essa representação é mais adequada para observar filas, veículos e fases semafóricas durante a demonstração.
 
 ## Roteiro de fala curto
 

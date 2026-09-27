@@ -1,19 +1,24 @@
-﻿import os
-import sys
 import json
+import os
+import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
-from sergipe_traffic_ai.traffic.demand import TrafficDemandSimulator
 from sergipe_traffic_ai.controllers.adaptive_controller import AdaptiveTrafficController
 from sergipe_traffic_ai.metrics.telemetry import TelemetryCollector
+from sergipe_traffic_ai.traffic.demand import (
+    AUGUSTO_AXIS,
+    BARAO_AXIS,
+    TrafficDemandSimulator,
+)
+
 
 def run_adaptive_experiment():
-    print("=== [Sergipe Traffic AI] Executando Experimento com Controlador Adaptativo ===")
-    
+    print("=== [Sergipe Traffic AI] Controlador Adaptativo ===")
+
     scenario_path = "scenarios/aracaju_barao_augusto.json"
-    with open(scenario_path, "r", encoding="utf-8-sig") as f:
-        scenario_data = json.load(f)
+    with open(scenario_path, "r", encoding="utf-8-sig") as file:
+        scenario_data = json.load(file)
 
     simulator = TrafficDemandSimulator(scenario_data)
     controller = AdaptiveTrafficController()
@@ -22,59 +27,43 @@ def run_adaptive_experiment():
     controller.reset(scenario_data)
     simulator.reset()
 
-    print(f"-> Semente (Seed): {simulator.seed} | Controlador: Adaptativo por Regras")
-    print("-> Executando simulação adaptativa no cruzamento de Aracaju...")
+    print(f"-> Semente: {simulator.seed} | Controlador: Adaptativo")
+    print("-> Executando dinâmica causal do cruzamento piloto...")
 
-    running = True
-    step_count = 0
-    
-    while running:
+    while simulator.current_time < 60.0:
         simulator.generate_vehicles_step()
-        
-        queue_barao = len([v for v in simulator.active_vehicles if "Barão" in v.origin_axis])
-        queue_augusto = len([v for v in simulator.active_vehicles if "Augusto" in v.origin_axis])
-        
-        for v in simulator.active_vehicles:
-            if v.state == "MOVING":
-                v.wait_time_s = round(v.wait_time_s + simulator.time_step_s, 2)
 
-        avg_wait = sum(v.wait_time_s for v in simulator.active_vehicles) / max(1, len(simulator.active_vehicles))
-        
-        # Constrói o dicionário de observação exigido pelo controlador adaptativo
         observation = {
-            "queue_barao": queue_barao,
-            "queue_augusto": queue_augusto,
-            "wait_barao": avg_wait,
-            "wait_augusto": avg_wait,
-            "time_step_s": simulator.time_step_s
+            "queue_barao": simulator.queue_length(BARAO_AXIS),
+            "queue_augusto": simulator.queue_length(AUGUSTO_AXIS),
+            "wait_barao": simulator.average_wait(BARAO_AXIS),
+            "wait_augusto": simulator.average_wait(AUGUSTO_AXIS),
+            "time_step_s": simulator.time_step_s,
         }
-        
+
         current_phase = controller.decide(observation, simulator.current_time)
-        
+        simulator.step(current_phase)
+
         telemetry.record_step(
             time_s=simulator.current_time,
             phase=current_phase,
-            queue_barao=queue_barao,
-            queue_augusto=queue_augusto,
-            avg_wait_s=avg_wait,
+            queue_barao=simulator.queue_length(BARAO_AXIS),
+            queue_augusto=simulator.queue_length(AUGUSTO_AXIS),
+            avg_wait_s=simulator.average_wait(),
             vehicles_completed=simulator.completed_vehicles_count,
-            controller_action=current_phase
+            controller_action=current_phase,
         )
 
-        running = simulator.step()
-        step_count += 1
-        
-        if simulator.current_time >= 60.0:
-            break
-
-    print(f"-> Experimento adaptativo finalizado! Total de passos: {step_count}")
-    print(f"-> Tempo médio de espera final (Adaptativo): {round(avg_wait, 2)} segundos")
+    print(f"-> Veículos gerados: {simulator.vehicle_counter}")
+    print(f"-> Veículos concluídos: {simulator.completed_vehicles_count}")
+    print(f"-> Espera média final: {simulator.average_wait():.2f} s")
 
     output_dir = "experiments/output"
     os.makedirs(output_dir, exist_ok=True)
     telemetry.export_to_csv(os.path.join(output_dir, "telemetria_adaptive.csv"))
     telemetry.export_to_json(os.path.join(output_dir, "telemetria_adaptive.json"))
-    print("=== Relatório de Telemetria do Controlador Adaptativo Salvo com Sucesso ===")
+    print("=== Telemetria adaptativa salva com sucesso ===")
+
 
 if __name__ == "__main__":
     run_adaptive_experiment()

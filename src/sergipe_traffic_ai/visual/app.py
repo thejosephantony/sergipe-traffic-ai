@@ -53,6 +53,10 @@ BLUE = (66, 154, 220)
 CAR_A = BLUE
 CAR_B = ORANGE
 
+VEHICLE_CAR = (70, 155, 225)
+VEHICLE_MOTORCYCLE = (238, 190, 70)
+VEHICLE_BUS = (84, 190, 130)
+
 CENTER_X = 505
 CENTER_Y = 430
 
@@ -313,6 +317,26 @@ def draw_road(
     )
 
 
+def draw_fleet_legend(
+    screen: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+) -> None:
+    rect = pygame.Rect(28, 192, 310, 88)
+    rounded_rect(screen, rect, SURFACE, 12, BORDER)
+    draw_text(screen, fonts, "AGENTES VEICULARES", (45, 205), "eyebrow", ACCENT)
+
+    items = [
+        ("Carro", VEHICLE_CAR),
+        ("Moto", VEHICLE_MOTORCYCLE),
+        ("Ônibus", VEHICLE_BUS),
+    ]
+    x = 46
+    for label, color in items:
+        pygame.draw.circle(screen, color, (x + 6, 245), 6)
+        draw_text(screen, fonts, label, (x + 18, 237), "tiny", TEXT)
+        x += 88
+
+
 def draw_traffic_light(
     screen: pygame.Surface,
     position: tuple[int, int],
@@ -352,19 +376,67 @@ def draw_vehicle(
     x: int,
     y: int,
     horizontal: bool,
-    color: tuple[int, int, int],
+    vehicle_type: str,
     queued: bool,
 ) -> None:
-    if horizontal:
-        body = pygame.Rect(x - 20, y - 10, 40, 20)
-        window = pygame.Rect(x - 5, y - 7, 13, 14)
-    else:
-        body = pygame.Rect(x - 10, y - 20, 20, 40)
-        window = pygame.Rect(x - 7, y - 5, 14, 13)
+    if vehicle_type == "bus":
+        color = VEHICLE_BUS
+        if horizontal:
+            body = pygame.Rect(x - 31, y - 12, 62, 24)
+            windows = [
+                pygame.Rect(x - 20, y - 8, 12, 10),
+                pygame.Rect(x - 4, y - 8, 12, 10),
+                pygame.Rect(x + 12, y - 8, 12, 10),
+            ]
+            wheels = [(x - 20, y + 12), (x + 20, y + 12)]
+        else:
+            body = pygame.Rect(x - 12, y - 31, 24, 62)
+            windows = [
+                pygame.Rect(x - 8, y - 20, 10, 12),
+                pygame.Rect(x - 8, y - 4, 10, 12),
+                pygame.Rect(x - 8, y + 12, 10, 12),
+            ]
+            wheels = [(x + 12, y - 20), (x + 12, y + 20)]
 
-    pygame.draw.rect(screen, (8, 14, 19), body.move(2, 3), border_radius=5)
-    pygame.draw.rect(screen, color, body, border_radius=5)
-    pygame.draw.rect(screen, (177, 213, 229), window, border_radius=3)
+        pygame.draw.rect(screen, (8, 14, 19), body.move(2, 3), border_radius=6)
+        pygame.draw.rect(screen, color, body, border_radius=6)
+        for window in windows:
+            pygame.draw.rect(screen, (177, 213, 229), window, border_radius=2)
+        for wheel in wheels:
+            pygame.draw.circle(screen, (20, 24, 28), wheel, 4)
+
+    elif vehicle_type == "motorcycle":
+        color = VEHICLE_MOTORCYCLE
+        if horizontal:
+            body = pygame.Rect(x - 13, y - 5, 26, 10)
+            pygame.draw.circle(screen, (18, 22, 26), (x - 9, y + 6), 4)
+            pygame.draw.circle(screen, (18, 22, 26), (x + 9, y + 6), 4)
+            pygame.draw.circle(screen, color, (x, y - 3), 5)
+            pygame.draw.line(screen, color, (x - 7, y), (x + 8, y), 4)
+        else:
+            body = pygame.Rect(x - 5, y - 13, 10, 26)
+            pygame.draw.circle(screen, (18, 22, 26), (x + 6, y - 9), 4)
+            pygame.draw.circle(screen, (18, 22, 26), (x + 6, y + 9), 4)
+            pygame.draw.circle(screen, color, (x - 3, y), 5)
+            pygame.draw.line(screen, color, (x, y - 7), (x, y + 8), 4)
+        pygame.draw.rect(screen, color, body, border_radius=4)
+
+    else:
+        color = VEHICLE_CAR
+        if horizontal:
+            body = pygame.Rect(x - 20, y - 10, 40, 20)
+            window = pygame.Rect(x - 5, y - 7, 13, 14)
+            wheels = [(x - 13, y + 10), (x + 13, y + 10)]
+        else:
+            body = pygame.Rect(x - 10, y - 20, 20, 40)
+            window = pygame.Rect(x - 7, y - 5, 14, 13)
+            wheels = [(x + 10, y - 13), (x + 10, y + 13)]
+
+        pygame.draw.rect(screen, (8, 14, 19), body.move(2, 3), border_radius=5)
+        pygame.draw.rect(screen, color, body, border_radius=5)
+        pygame.draw.rect(screen, (177, 213, 229), window, border_radius=3)
+        for wheel in wheels:
+            pygame.draw.circle(screen, (20, 24, 28), wheel, 3)
 
     if queued:
         pygame.draw.rect(screen, WHITE, body, 2, border_radius=5)
@@ -374,13 +446,12 @@ def draw_vehicles(screen: pygame.Surface, simulator: TrafficDemandSimulator) -> 
     for vehicle in simulator.active_vehicles:
         x, y = world_to_screen(vehicle)
         horizontal = vehicle.origin_axis == BARAO_AXIS
-        color = CAR_A if horizontal else CAR_B
         draw_vehicle(
             screen,
             x,
             y,
             horizontal=horizontal,
-            color=color,
+            vehicle_type=vehicle.vehicle_type,
             queued=vehicle.state == "QUEUED",
         )
 
@@ -527,9 +598,14 @@ def draw_panel(
     )
 
     rounded_rect(screen, pygame.Rect(left, 660, width, 82), CARD_ALT, 12, BORDER)
-    draw_text(screen, fonts, "DADOS DO EXPERIMENTO", (left + 16, 672), "metric_label", MUTED)
-    draw_text(screen, fonts, f"Demanda sintética • seed {seed}", (left + 16, 696), "small", TEXT)
-    draw_text(screen, fonts, "Cenário inspirado em Aracaju/SE", (left + 16, 718), "tiny", MUTED)
+    draw_text(screen, fonts, "FROTA ATIVA • DADOS SINTÉTICOS", (left + 16, 672), "metric_label", MUTED)
+    fleet_text = (
+        f"Carros {simulator.active_count_by_type('car')}  •  "
+        f"Motos {simulator.active_count_by_type('motorcycle')}  •  "
+        f"Ônibus {simulator.active_count_by_type('bus')}"
+    )
+    draw_text(screen, fonts, fleet_text, (left + 16, 696), "small", TEXT)
+    draw_text(screen, fonts, f"Seed {seed} • composição configurável no cenário", (left + 16, 718), "tiny", MUTED)
 
     state = "PAUSADO" if paused else f"{speed_multiplier:g}×"
     rounded_rect(screen, pygame.Rect(left, 756, width, 42), SURFACE_2, 10, BORDER)
@@ -656,6 +732,7 @@ def main() -> None:
             speed_multiplier,
         )
         draw_road(screen, fonts)
+        draw_fleet_legend(screen, fonts)
         draw_signals(screen, current_phase)
         draw_vehicles(screen, simulator)
         draw_panel(

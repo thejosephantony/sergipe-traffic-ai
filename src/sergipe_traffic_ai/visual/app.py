@@ -11,7 +11,11 @@ from sergipe_traffic_ai.controllers.adaptive_controller import AdaptiveTrafficCo
 from sergipe_traffic_ai.controllers.fixed_controller import FixedTrafficController
 from sergipe_traffic_ai.traffic.demand import (
     AUGUSTO_AXIS,
+    AUGUSTO_NORTHBOUND,
+    AUGUSTO_SOUTHBOUND,
     BARAO_AXIS,
+    BARAO_EASTBOUND,
+    BARAO_WESTBOUND,
     TrafficDemandSimulator,
 )
 
@@ -84,17 +88,47 @@ def axis_observation(simulator: TrafficDemandSimulator) -> dict:
     }
 
 
-def world_to_screen(vehicle) -> tuple[int, int]:
-    scale = 2.35
+def world_to_screen(vehicle) -> tuple[int, int, str]:
+    """
+    Converte a coordenada longitudinal em posição de tela.
 
-    if vehicle.origin_axis == BARAO_AXIS:
-        x = CENTER_X + int(vehicle.position * scale)
-        y = CENTER_Y - 44
-        return x, y
+    vehicle.position representa o para-choque dianteiro.
+    Em position == 0, o veículo encosta na linha de retenção e
+    permanece completamente antes da faixa de pedestres.
+    """
+    scale = 3.0
+    half_length_px = (vehicle.length_m * scale) / 2.0
 
-    x = CENTER_X + 44
-    y = CENTER_Y - int(vehicle.position * scale)
-    return x, y
+    if vehicle.movement == BARAO_EASTBOUND:
+        front_x = 365 + vehicle.position * scale
+        return (
+            int(front_x - half_length_px),
+            470,
+            "east",
+        )
+
+    if vehicle.movement == BARAO_WESTBOUND:
+        front_x = 645 - vehicle.position * scale
+        return (
+            int(front_x + half_length_px),
+            390,
+            "west",
+        )
+
+    if vehicle.movement == AUGUSTO_NORTHBOUND:
+        front_y = 565 - vehicle.position * scale
+        return (
+            550,
+            int(front_y + half_length_px),
+            "north",
+        )
+
+    front_y = 295 + vehicle.position * scale
+    return (
+        460,
+        int(front_y - half_length_px),
+        "south",
+    )
 
 
 def rounded_rect(
@@ -211,9 +245,33 @@ def draw_direction_arrow(
 ) -> None:
     x, y = center
     if orientation == "right":
-        points = [(x - 11, y - 6), (x + 3, y - 6), (x + 3, y - 11), (x + 14, y), (x + 3, y + 11), (x + 3, y + 6), (x - 11, y + 6)]
+        points = [
+            (x - 11, y - 6), (x + 3, y - 6),
+            (x + 3, y - 11), (x + 14, y),
+            (x + 3, y + 11), (x + 3, y + 6),
+            (x - 11, y + 6),
+        ]
+    elif orientation == "left":
+        points = [
+            (x + 11, y - 6), (x - 3, y - 6),
+            (x - 3, y - 11), (x - 14, y),
+            (x - 3, y + 11), (x - 3, y + 6),
+            (x + 11, y + 6),
+        ]
+    elif orientation == "up":
+        points = [
+            (x - 6, y + 11), (x - 6, y - 3),
+            (x - 11, y - 3), (x, y - 14),
+            (x + 11, y - 3), (x + 6, y - 3),
+            (x + 6, y + 11),
+        ]
     else:
-        points = [(x - 6, y + 11), (x - 6, y - 3), (x - 11, y - 3), (x, y - 14), (x + 11, y - 3), (x + 6, y - 3), (x + 6, y + 11)]
+        points = [
+            (x - 6, y - 11), (x - 6, y + 3),
+            (x - 11, y + 3), (x, y + 14),
+            (x + 11, y + 3), (x + 6, y + 3),
+            (x + 6, y - 11),
+        ]
     pygame.draw.polygon(screen, (185, 192, 197), points)
 
 
@@ -266,26 +324,47 @@ def draw_road(
     pygame.draw.line(screen, ROAD_EDGE, (417, HEADER_HEIGHT), (417, HEIGHT), 2)
     pygame.draw.line(screen, ROAD_EDGE, (593, HEADER_HEIGHT), (593, HEIGHT), 2)
 
-    # Linhas de faixa
+    # Divisão dos sentidos
     for x in range(10, SIM_WIDTH - 20, 48):
-        if x < 400 or x > 610:
-            pygame.draw.line(screen, LANE, (x, CENTER_Y), (x + 25, CENTER_Y), 2)
+        if x < 345 or x > 665:
+            pygame.draw.line(
+                screen,
+                LANE,
+                (x, CENTER_Y),
+                (x + 25, CENTER_Y),
+                2,
+            )
 
     for y in range(HEADER_HEIGHT + 8, HEIGHT - 20, 48):
-        if y < 325 or y > 535:
-            pygame.draw.line(screen, LANE, (CENTER_X, y), (CENTER_X, y + 25), 2)
+        if y < 285 or y > 575:
+            pygame.draw.line(
+                screen,
+                LANE,
+                (CENTER_X, y),
+                (CENTER_X, y + 25),
+                2,
+            )
 
-    # Linhas de parada
-    pygame.draw.line(screen, WHITE, (395, 348), (395, 512), 5)
-    pygame.draw.line(screen, WHITE, (423, 540), (587, 540), 5)
+    # Quatro faixas de pedestres, uma em cada borda do cruzamento
+    draw_crosswalk(screen, False, (378, 350))
+    draw_crosswalk(screen, False, (610, 350))
+    draw_crosswalk(screen, True, (423, 307))
+    draw_crosswalk(screen, True, (423, 527))
 
-    # Faixas de pedestres
-    draw_crosswalk(screen, False, (369, 354))
-    draw_crosswalk(screen, True, (427, 523))
+    # Linhas de retenção antes das faixas
+    # Barão/Maynard: leste (faixa inferior) e oeste (faixa superior)
+    pygame.draw.line(screen, WHITE, (365, 434), (365, 510), 5)
+    pygame.draw.line(screen, WHITE, (645, 350), (645, 426), 5)
 
-    # Setas de direção
-    draw_direction_arrow(screen, (235, CENTER_Y - 44), "right")
-    draw_direction_arrow(screen, (CENTER_X + 44, 690), "up")
+    # Augusto Franco: norte (faixa direita) e sul (faixa esquerda)
+    pygame.draw.line(screen, WHITE, (508, 565), (590, 565), 5)
+    pygame.draw.line(screen, WHITE, (420, 295), (502, 295), 5)
+
+    # Setas dos quatro sentidos
+    draw_direction_arrow(screen, (245, 470), "right")
+    draw_direction_arrow(screen, (790, 390), "left")
+    draw_direction_arrow(screen, (550, 690), "up")
+    draw_direction_arrow(screen, (460, 175), "down")
 
     # Rótulos das vias
     rounded_rect(screen, pygame.Rect(35, 548, 284, 34), SURFACE_2, 9, BORDER)
@@ -367,8 +446,12 @@ def draw_signals(screen: pygame.Surface, phase: str) -> None:
     barao_active = "green" if phase == "BARAO_GREEN" else "red"
     augusto_active = "green" if phase == "AUGUSTO_GREEN" else "red"
 
-    draw_traffic_light(screen, (350, 221), barao_active, "vertical")
-    draw_traffic_light(screen, (619, 538), augusto_active, "horizontal")
+    # Um conjunto para cada aproximação. Sentidos opostos do mesmo
+    # eixo recebem a mesma fase neste estágio do protótipo.
+    draw_traffic_light(screen, (326, 451), barao_active, "vertical")
+    draw_traffic_light(screen, (660, 305), barao_active, "vertical")
+    draw_traffic_light(screen, (568, 582), augusto_active, "horizontal")
+    draw_traffic_light(screen, (341, 242), augusto_active, "horizontal")
 
 
 def draw_vehicle(
@@ -378,6 +461,7 @@ def draw_vehicle(
     horizontal: bool,
     vehicle_type: str,
     queued: bool,
+    heading: str,
 ) -> None:
     if vehicle_type == "bus":
         color = VEHICLE_BUS
@@ -438,13 +522,23 @@ def draw_vehicle(
         for wheel in wheels:
             pygame.draw.circle(screen, (20, 24, 28), wheel, 3)
 
+    # Indicador sutil da dianteira do veículo
+    if heading == "east":
+        pygame.draw.circle(screen, WHITE, (body.right - 3, body.centery), 2)
+    elif heading == "west":
+        pygame.draw.circle(screen, WHITE, (body.left + 3, body.centery), 2)
+    elif heading == "north":
+        pygame.draw.circle(screen, WHITE, (body.centerx, body.top + 3), 2)
+    else:
+        pygame.draw.circle(screen, WHITE, (body.centerx, body.bottom - 3), 2)
+
     if queued:
         pygame.draw.rect(screen, WHITE, body, 2, border_radius=5)
 
 
 def draw_vehicles(screen: pygame.Surface, simulator: TrafficDemandSimulator) -> None:
     for vehicle in simulator.active_vehicles:
-        x, y = world_to_screen(vehicle)
+        x, y, heading = world_to_screen(vehicle)
         horizontal = vehicle.origin_axis == BARAO_AXIS
         draw_vehicle(
             screen,
@@ -453,6 +547,7 @@ def draw_vehicles(screen: pygame.Surface, simulator: TrafficDemandSimulator) -> 
             horizontal=horizontal,
             vehicle_type=vehicle.vehicle_type,
             queued=vehicle.state == "QUEUED",
+            heading=heading,
         )
 
 

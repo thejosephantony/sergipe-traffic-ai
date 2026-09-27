@@ -133,12 +133,15 @@ def world_to_screen(vehicle) -> tuple[int, int, str]:
             "north",
         )
 
-    front_y = 295 + vehicle.position * scale
-    return (
-        460,
-        int(front_y - visual_half_length_px),
-        "south",
-    )
+    if vehicle.movement == AUGUSTO_SOUTHBOUND:
+        front_y = 295 + vehicle.position * scale
+        return (
+            460,
+            int(front_y - visual_half_length_px),
+            "south",
+        )
+
+    raise ValueError(f"Movimento visual desconhecido: {vehicle.movement}")
 
 
 def rounded_rect(

@@ -6,7 +6,12 @@
       "city": "Aracaju",
       "state": "SE",
       "primary_axis": "Av. Barão de Maruim / Av. Des. Maynard",
-      "intersecting_axis": "Av. Augusto Franco (Rio de Janeiro)"
+      "intersecting_axis": "Av. Augusto Franco (Rio de Janeiro)",
+      "reference_point": {
+        "latitude": -10.9187,
+        "longitude": -37.06943,
+        "note": "Referência aproximada do cenário piloto; não representa levantamento topográfico."
+      }
     },
     "seed": 42,
     "duration_s": 1800,
@@ -35,6 +40,21 @@
       "yellow_s": 3,
       "all_red_s": 1,
       "cycle_duration_s": 78
+    },
+    "road_network": {
+      "source": "OpenStreetMap",
+      "provider": "Overpass API",
+      "endpoint": "https://overpass-api.de/api/interpreter",
+      "radius_m": 800,
+      "attribution": "© OpenStreetMap contributors",
+      "license": "ODbL 1.0",
+      "pilot_road_aliases": [
+        "Avenida Augusto Franco",
+        "Augusto Franco",
+        "Avenida Desembargador Maynard",
+        "Desembargador Maynard"
+      ],
+      "usage_note": "A rede viária é obtida do OSM; a demanda de tráfego continua sintética nesta etapa."
     }
   }
 }

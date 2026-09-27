@@ -46,7 +46,12 @@ def test_demand_is_reproducible():
 
         seq2.append(
             [
-                (v.vehicle_id, v.origin_axis, v.vehicle_type)
+                (
+                    v.vehicle_id,
+                    v.origin_axis,
+                    v.vehicle_type,
+                    v.movement,
+                )
                 for v in second.generate_vehicles_step()
             ]
         )

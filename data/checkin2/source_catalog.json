@@ -1,0 +1,47 @@
+{
+  "checkin": "Check-in 2",
+  "project": "Sergipe Traffic AI",
+  "sources": [
+    {
+      "id": "ibge_sergipe_boundary",
+      "name": "IBGE - Malha territorial do Estado de Sergipe",
+      "type": "official_api",
+      "status": "optional_live_ingestion",
+      "scope": "geografia",
+      "endpoint": "https://servicodados.ibge.gov.br/api/v3/malhas/estados/28?formato=application/vnd.geo+json&qualidade=minima",
+      "identifier": "UF 28",
+      "usage": "Contextualização geográfica e validação do recorte estadual."
+    },
+    {
+      "id": "ibge_aracaju_boundary",
+      "name": "IBGE - Malha territorial do Município de Aracaju",
+      "type": "official_api",
+      "status": "optional_live_ingestion",
+      "scope": "geografia",
+      "endpoint": "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2800308?formato=application/vnd.geo+json&qualidade=minima",
+      "identifier": "Município 2800308",
+      "usage": "Recorte do município usado como contexto do cenário piloto."
+    },
+    {
+      "id": "openstreetmap_roads",
+      "name": "OpenStreetMap",
+      "type": "open_dataset",
+      "status": "planned_next_ingestion",
+      "scope": "rede_viaria",
+      "endpoint": "https://www.openstreetmap.org/",
+      "license": "ODbL 1.0",
+      "attribution": "© OpenStreetMap contributors",
+      "usage": "Rede viária, sentidos, nomes de vias e atributos cartográficos em etapa posterior."
+    },
+    {
+      "id": "synthetic_demand",
+      "name": "Demanda veicular sintética do cenário",
+      "type": "synthetic_dataset",
+      "status": "active",
+      "scope": "demanda_de_trafego",
+      "path": "scenarios/aracaju_barao_augusto.json",
+      "usage": "Geração reproduzível de chegadas, composição da frota e divisão por sentido.",
+      "warning": "Não representa contagem real de veículos de Aracaju."
+    }
+  ]
+}

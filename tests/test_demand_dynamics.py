@@ -5,11 +5,11 @@ from sergipe_traffic_ai.traffic.demand import (
 )
 
 
-def scenario(seed=42):
+def scenario(seed=42, duration_s=20.0):
     return {
         "scenario": {
             "seed": seed,
-            "duration_s": 20.0,
+            "duration_s": duration_s,
             "time_step_s": 0.2,
             "demand": {
                 "axis_barao_maynard_rate": 0.8,
@@ -119,7 +119,7 @@ def test_vehicle_mix_is_normalized():
 
 
 def test_completed_vehicles_are_counted_by_type():
-    sim = TrafficDemandSimulator(scenario())
+    sim = TrafficDemandSimulator(scenario(duration_s=40.0))
     sim.rate_barao_maynard = 0.0
     sim.rate_augusto_franco = 0.0
 

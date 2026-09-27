@@ -447,11 +447,21 @@ def draw_traffic_light(
 
 
 def draw_signals(screen: pygame.Surface, phase: str) -> None:
-    barao_active = "green" if phase == "BARAO_GREEN" else "red"
-    augusto_active = "green" if phase == "AUGUSTO_GREEN" else "red"
+    if phase == "BARAO_GREEN":
+        barao_active = "green"
+    elif phase == "BARAO_YELLOW":
+        barao_active = "yellow"
+    else:
+        barao_active = "red"
 
-    # Um conjunto para cada aproximação. Sentidos opostos do mesmo
-    # eixo recebem a mesma fase neste estágio do protótipo.
+    if phase == "AUGUSTO_GREEN":
+        augusto_active = "green"
+    elif phase == "AUGUSTO_YELLOW":
+        augusto_active = "yellow"
+    else:
+        augusto_active = "red"
+
+    # Sentidos opostos do mesmo eixo recebem a mesma indicação.
     draw_traffic_light(screen, (326, 451), barao_active, "vertical")
     draw_traffic_light(screen, (680, 305), barao_active, "vertical")
     draw_traffic_light(screen, (568, 600), augusto_active, "horizontal")
@@ -636,13 +646,36 @@ def draw_panel(
     seed = scenario.get("scenario", {}).get("seed", 42)
     draw_text(screen, fonts, scenario_id, (left, 78), "tiny", MUTED)
 
-    controller_label = "Adaptativo por regras" if controller_name == "adaptive" else "Tempo fixo (baseline)"
-    phase_label = "Barão/Maynard liberado" if phase == "BARAO_GREEN" else "Augusto Franco liberado"
+    controller_label = (
+        "Adaptativo por regras"
+        if controller_name == "adaptive"
+        else "Tempo fixo (baseline)"
+    )
+
+    phase_labels = {
+        "BARAO_GREEN": ("Barão/Maynard liberado", GREEN),
+        "BARAO_YELLOW": ("Barão/Maynard em amarelo", YELLOW),
+        "ALL_RED_TO_AUGUSTO": ("Todos vermelhos • limpeza do cruzamento", RED),
+        "AUGUSTO_GREEN": ("Augusto Franco liberado", GREEN),
+        "AUGUSTO_YELLOW": ("Augusto Franco em amarelo", YELLOW),
+        "ALL_RED_TO_BARAO": ("Todos vermelhos • limpeza do cruzamento", RED),
+    }
+    phase_label, phase_color = phase_labels.get(
+        phase,
+        ("Fase de segurança", MUTED),
+    )
 
     rounded_rect(screen, pygame.Rect(left, 107, width, 76), CARD_ALT, 12, BORDER)
     draw_text(screen, fonts, "CONTROLADOR", (left + 16, 119), "metric_label", MUTED)
     draw_text(screen, fonts, controller_label, (left + 16, 141), "body_bold", TEXT)
-    draw_text(screen, fonts, phase_label, (left + 16, 162), "tiny", GREEN)
+    draw_text(
+        screen,
+        fonts,
+        phase_label,
+        (left + 16, 162),
+        "tiny",
+        phase_color,
+    )
 
     gap = 10
     card_width = (width - gap) // 2

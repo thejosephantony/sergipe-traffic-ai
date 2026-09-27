@@ -159,7 +159,7 @@ class TrafficDemandSimulator:
     ) -> Dict[str, float]:
         normalized: Dict[str, float] = {}
 
-        for axis_name, movements in MOVEMENTS_BY_AXIS.items():
+        for movements in MOVEMENTS_BY_AXIS.values():
             first, second = movements
             first_weight = max(
                 0.0,

@@ -59,9 +59,9 @@ def test_preprocess_scenario_derives_directional_rates():
     processed = preprocess_scenario(scenario())
     rates = processed["cleaned_demand"]["directional_rates_veh_s"]
 
-    assert rates["barao_eastbound"] == 0.6
-    assert rates["barao_westbound"] == 0.2
-    assert rates["augusto_northbound"] == 0.15
+    assert math.isclose(rates["barao_eastbound"], 0.6)
+    assert math.isclose(rates["barao_westbound"], 0.2)
+    assert math.isclose(rates["augusto_northbound"], 0.15)
     assert math.isclose(rates["augusto_southbound"], 0.45)
     assert processed["baseline"]["machine_learning"] is False
 

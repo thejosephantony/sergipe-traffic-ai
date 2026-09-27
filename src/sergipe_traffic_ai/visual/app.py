@@ -1062,6 +1062,144 @@ def draw_osm_map(
     )
 
 
+def draw_osm_context_inset(
+    screen: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+    context: dict,
+) -> None:
+    card = pygame.Rect(700, 104, 302, 202)
+    draw_elevated_rect(
+        screen,
+        card,
+        (16, 31, 44),
+        14,
+        BORDER,
+    )
+
+    draw_text(
+        screen,
+        fonts,
+        "CONTEXTO REAL • OPENSTREETMAP",
+        (card.x + 14, card.y + 12),
+        "eyebrow",
+        GREEN,
+    )
+    draw_text(
+        screen,
+        fonts,
+        "Entorno do cenário piloto",
+        (card.x + 14, card.y + 32),
+        "small",
+        TEXT,
+    )
+
+    viewport = pygame.Rect(
+        card.x + 12,
+        card.y + 56,
+        card.width - 24,
+        112,
+    )
+    pygame.draw.rect(
+        screen,
+        (10, 22, 31),
+        viewport,
+        border_radius=9,
+    )
+
+    points = [
+        point
+        for road in context["roads"]
+        for point in road["points"]
+    ]
+    if not points:
+        return
+
+    min_x = min(point[0] for point in points)
+    max_x = max(point[0] for point in points)
+    min_y = min(point[1] for point in points)
+    max_y = max(point[1] for point in points)
+    span_x = max(1.0, max_x - min_x)
+    span_y = max(1.0, max_y - min_y)
+
+    scale = min(
+        (viewport.width - 14) / span_x,
+        (viewport.height - 14) / span_y,
+    )
+    used_width = span_x * scale
+    used_height = span_y * scale
+    offset_x = (
+        viewport.x
+        + (viewport.width - used_width) / 2.0
+        - min_x * scale
+    )
+    offset_y = (
+        viewport.y
+        + (viewport.height - used_height) / 2.0
+        - min_y * scale
+    )
+
+    def project(point: tuple[float, float]) -> tuple[int, int]:
+        return (
+            int(offset_x + point[0] * scale),
+            int(offset_y + point[1] * scale),
+        )
+
+    for road in context["roads"]:
+        projected = [project(point) for point in road["points"]]
+        if len(projected) < 2:
+            continue
+
+        axis = road.get("axis")
+        if axis == "barao":
+            color = BLUE
+            width = 3
+        elif axis == "augusto":
+            color = ORANGE
+            width = 3
+        else:
+            color = (67, 87, 100)
+            width = 1
+
+        pygame.draw.lines(
+            screen,
+            color,
+            False,
+            projected,
+            width,
+        )
+
+    anchor_point = project(context["anchor"])
+    pygame.draw.circle(
+        screen,
+        (8, 15, 20),
+        anchor_point,
+        6,
+    )
+    pygame.draw.circle(
+        screen,
+        GREEN,
+        anchor_point,
+        4,
+    )
+
+    draw_text(
+        screen,
+        fonts,
+        f"{context['road_count']} trechos OSM",
+        (card.x + 14, card.bottom - 26),
+        "tiny",
+        MUTED,
+    )
+    draw_text(
+        screen,
+        fonts,
+        "© OpenStreetMap contributors",
+        (card.x + 133, card.bottom - 26),
+        "tiny",
+        MUTED,
+    )
+
+
 def draw_osm_missing_hint(
     screen: pygame.Surface,
     fonts: dict[str, pygame.font.Font],
@@ -1488,7 +1626,7 @@ def draw_panel(
     draw_text(
         screen,
         fonts,
-        "ESPAÇO Pausa • R Reset • 1/2 Controle • D Dados • G Mapa",
+        "ESPAÇO Pausa • R Reset • 1/2 Controle • D Dados • G OSM",
         (left + 12, 762),
         "tiny",
         MUTED,
@@ -1576,7 +1714,7 @@ def main() -> None:
 
     paused = False
     data_overlay = False
-    osm_mode = osm_context is not None
+    show_osm_context = osm_context is not None
     running = True
     accumulator = 0.0
     speed_multiplier = 1.0
@@ -1624,7 +1762,7 @@ def main() -> None:
                     audio.play_ui()
                 elif event.key == pygame.K_g:
                     if osm_context is not None:
-                        osm_mode = not osm_mode
+                        show_osm_context = not show_osm_context
                         audio.play_ui()
                 elif event.key == pygame.K_m:
                     audio.toggle()
@@ -1673,29 +1811,27 @@ def main() -> None:
             paused,
             speed_multiplier,
         )
-        if osm_mode and osm_context is not None:
-            draw_osm_map(
-                screen,
-                fonts,
-                osm_context,
-                current_phase,
-            )
-        else:
-            draw_road(screen, fonts)
-            draw_signals(screen, current_phase)
-            if osm_context is None:
-                draw_osm_missing_hint(
-                    screen,
-                    fonts,
-                )
-
+        draw_road(screen, fonts)
+        draw_signals(screen, current_phase)
         draw_fleet_legend(screen, fonts)
         draw_vehicles(
             screen,
             simulator,
-            osm_context=osm_context,
-            osm_mode=osm_mode,
+            osm_context=None,
+            osm_mode=False,
         )
+
+        if show_osm_context and osm_context is not None:
+            draw_osm_context_inset(
+                screen,
+                fonts,
+                osm_context,
+            )
+        elif osm_context is None:
+            draw_osm_missing_hint(
+                screen,
+                fonts,
+            )
         draw_panel(
             screen,
             fonts,

@@ -333,18 +333,29 @@ class TrafficDemandSimulator:
         leader: Vehicle | None = None
 
         for vehicle in vehicles:
+            already_crossing = (
+                vehicle.position > self.stop_line_position_m
+            )
+
             if leader is None:
                 limit = (
                     self.exit_position_m
-                    if green
+                    if green or already_crossing
                     else self.stop_line_position_m
                 )
             else:
-                limit = (
+                leader_gap_limit = (
                     leader.position
                     - leader.length_m
                     - self.min_gap_m
                 )
+                if green or already_crossing:
+                    limit = leader_gap_limit
+                else:
+                    limit = min(
+                        self.stop_line_position_m,
+                        leader_gap_limit,
+                    )
 
             requested_position = (
                 vehicle.position

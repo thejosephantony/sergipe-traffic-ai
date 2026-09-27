@@ -97,36 +97,40 @@ def world_to_screen(vehicle) -> tuple[int, int, str]:
     permanece completamente antes da faixa de pedestres.
     """
     scale = 3.0
-    half_length_px = (vehicle.length_m * scale) / 2.0
+    visual_half_length_px = {
+        "car": 20.0,
+        "motorcycle": 13.0,
+        "bus": 31.0,
+    }[vehicle.vehicle_type]
 
     if vehicle.movement == BARAO_EASTBOUND:
         front_x = 365 + vehicle.position * scale
         return (
-            int(front_x - half_length_px),
+            int(front_x - visual_half_length_px),
             470,
             "east",
         )
 
     if vehicle.movement == BARAO_WESTBOUND:
-        front_x = 645 - vehicle.position * scale
+        front_x = 665 - vehicle.position * scale
         return (
-            int(front_x + half_length_px),
+            int(front_x + visual_half_length_px),
             390,
             "west",
         )
 
     if vehicle.movement == AUGUSTO_NORTHBOUND:
-        front_y = 565 - vehicle.position * scale
+        front_y = 585 - vehicle.position * scale
         return (
             550,
-            int(front_y + half_length_px),
+            int(front_y + visual_half_length_px),
             "north",
         )
 
     front_y = 295 + vehicle.position * scale
     return (
         460,
-        int(front_y - half_length_px),
+        int(front_y - visual_half_length_px),
         "south",
     )
 
@@ -282,7 +286,7 @@ def draw_crosswalk(
 ) -> None:
     x, y = position
     if horizontal:
-        for index in range(7):
+        for index in range(10):
             pygame.draw.rect(
                 screen,
                 (215, 219, 222),
@@ -354,10 +358,10 @@ def draw_road(
     # Linhas de retenção antes das faixas
     # Barão/Maynard: leste (faixa inferior) e oeste (faixa superior)
     pygame.draw.line(screen, WHITE, (365, 434), (365, 510), 5)
-    pygame.draw.line(screen, WHITE, (645, 350), (645, 426), 5)
+    pygame.draw.line(screen, WHITE, (665, 350), (665, 426), 5)
 
     # Augusto Franco: norte (faixa direita) e sul (faixa esquerda)
-    pygame.draw.line(screen, WHITE, (508, 565), (590, 565), 5)
+    pygame.draw.line(screen, WHITE, (508, 585), (590, 585), 5)
     pygame.draw.line(screen, WHITE, (420, 295), (502, 295), 5)
 
     # Setas dos quatro sentidos
@@ -449,8 +453,8 @@ def draw_signals(screen: pygame.Surface, phase: str) -> None:
     # Um conjunto para cada aproximação. Sentidos opostos do mesmo
     # eixo recebem a mesma fase neste estágio do protótipo.
     draw_traffic_light(screen, (326, 451), barao_active, "vertical")
-    draw_traffic_light(screen, (660, 305), barao_active, "vertical")
-    draw_traffic_light(screen, (568, 582), augusto_active, "horizontal")
+    draw_traffic_light(screen, (680, 305), barao_active, "vertical")
+    draw_traffic_light(screen, (568, 600), augusto_active, "horizontal")
     draw_traffic_light(screen, (341, 242), augusto_active, "horizontal")
 
 

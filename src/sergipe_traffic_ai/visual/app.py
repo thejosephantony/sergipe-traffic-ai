@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import deque
 from pathlib import Path
 
 import pygame
@@ -15,22 +16,45 @@ from sergipe_traffic_ai.traffic.demand import (
 )
 
 
-WIDTH = 1280
-HEIGHT = 720
+WIDTH = 1440
+HEIGHT = 820
 FPS = 60
 
-BG = (22, 34, 45)
-ROAD = (63, 68, 73)
-LANE = (210, 210, 210)
-PANEL = (245, 248, 250)
-TEXT = (28, 42, 55)
-MUTED = (92, 108, 120)
-GREEN = (46, 160, 92)
-RED = (205, 70, 70)
-YELLOW = (225, 174, 62)
-CAR_A = (52, 145, 210)
-CAR_B = (235, 151, 62)
+SIM_WIDTH = 1030
+PANEL_X = SIM_WIDTH
+PANEL_WIDTH = WIDTH - PANEL_X
+HEADER_HEIGHT = 86
+
+# Identidade visual
+BG = (12, 24, 36)
+SURFACE = (18, 34, 49)
+SURFACE_2 = (24, 43, 60)
+CARD = (28, 49, 67)
+CARD_ALT = (33, 56, 75)
+BORDER = (48, 73, 91)
+
+ROAD = (55, 61, 67)
+ROAD_EDGE = (89, 96, 102)
+SIDEWALK = (91, 98, 104)
+LANE = (225, 228, 230)
+
+TEXT = (237, 242, 246)
+MUTED = (154, 171, 183)
+SUBTLE = (104, 126, 141)
 WHITE = (255, 255, 255)
+
+ACCENT = (31, 167, 201)
+GREEN = (54, 190, 116)
+RED = (226, 83, 83)
+YELLOW = (239, 190, 64)
+ORANGE = (235, 151, 62)
+BLUE = (66, 154, 220)
+
+CAR_A = BLUE
+CAR_B = ORANGE
+
+CENTER_X = 505
+CENTER_Y = 430
 
 
 def load_scenario(path: str) -> dict:
@@ -57,60 +81,364 @@ def axis_observation(simulator: TrafficDemandSimulator) -> dict:
 
 
 def world_to_screen(vehicle) -> tuple[int, int]:
-    center_x, center_y = 475, 360
+    scale = 2.35
 
     if vehicle.origin_axis == BARAO_AXIS:
-        # Eixo horizontal: Oeste -> Leste
-        x = center_x + int(vehicle.position * 2.15)
-        y = center_y - 36
+        x = CENTER_X + int(vehicle.position * scale)
+        y = CENTER_Y - 44
         return x, y
 
-    # Eixo vertical: Sul -> Norte
-    x = center_x + 36
-    y = center_y - int(vehicle.position * 2.15)
+    x = CENTER_X + 44
+    y = CENTER_Y - int(vehicle.position * scale)
     return x, y
 
 
-def draw_road(screen: pygame.Surface) -> None:
-    pygame.draw.rect(screen, ROAD, pygame.Rect(0, 285, 950, 150))
-    pygame.draw.rect(screen, ROAD, pygame.Rect(400, 0, 150, 720))
+def rounded_rect(
+    screen: pygame.Surface,
+    rect: pygame.Rect,
+    color: tuple[int, int, int],
+    radius: int = 12,
+    border_color: tuple[int, int, int] | None = None,
+    border_width: int = 1,
+) -> None:
+    pygame.draw.rect(screen, color, rect, border_radius=radius)
+    if border_color is not None:
+        pygame.draw.rect(
+            screen,
+            border_color,
+            rect,
+            border_width,
+            border_radius=radius,
+        )
 
-    # Linhas centrais
-    for x in range(10, 940, 42):
-        pygame.draw.line(screen, LANE, (x, 360), (x + 22, 360), 2)
-    for y in range(10, 710, 42):
-        pygame.draw.line(screen, LANE, (475, y), (475, y + 22), 2)
+
+def draw_text(
+    screen: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+    value: str,
+    position: tuple[int, int],
+    font: str = "body",
+    color: tuple[int, int, int] = TEXT,
+) -> pygame.Rect:
+    surface = fonts[font].render(value, True, color)
+    rect = surface.get_rect(topleft=position)
+    screen.blit(surface, rect)
+    return rect
+
+
+def draw_badge(
+    screen: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+    label: str,
+    position: tuple[int, int],
+    color: tuple[int, int, int],
+) -> int:
+    text_surface = fonts["badge"].render(label, True, WHITE)
+    width = text_surface.get_width() + 24
+    rect = pygame.Rect(position[0], position[1], width, 28)
+    pygame.draw.rect(screen, color, rect, border_radius=14)
+    screen.blit(text_surface, (rect.x + 12, rect.y + 5))
+    return width
+
+
+def draw_header(
+    screen: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+    controller_name: str,
+    paused: bool,
+    speed_multiplier: float,
+) -> None:
+    pygame.draw.rect(screen, SURFACE, pygame.Rect(0, 0, SIM_WIDTH, HEADER_HEIGHT))
+    pygame.draw.line(
+        screen,
+        BORDER,
+        (0, HEADER_HEIGHT - 1),
+        (SIM_WIDTH, HEADER_HEIGHT - 1),
+        1,
+    )
+
+    # Marca visual
+    rounded_rect(screen, pygame.Rect(28, 20, 44, 44), ACCENT, 11)
+    pygame.draw.circle(screen, WHITE, (50, 31), 5)
+    pygame.draw.circle(screen, WHITE, (50, 42), 5)
+    pygame.draw.circle(screen, WHITE, (50, 53), 5)
+
+    draw_text(
+        screen,
+        fonts,
+        "SERGIPE TRAFFIC AI",
+        (88, 17),
+        "title",
+    )
+    draw_text(
+        screen,
+        fonts,
+        "Laboratório virtual de controle semafórico • Aracaju/SE",
+        (89, 51),
+        "small",
+        MUTED,
+    )
+
+    controller_color = ACCENT if controller_name == "adaptive" else BLUE
+    controller_label = "ADAPTATIVO" if controller_name == "adaptive" else "BASELINE FIXO"
+    badge_x = 715
+    first_width = draw_badge(
+        screen,
+        fonts,
+        controller_label,
+        (badge_x, 28),
+        controller_color,
+    )
+    status_color = YELLOW if paused else GREEN
+    status_label = "PAUSADO" if paused else f"RODANDO {speed_multiplier:g}×"
+    draw_badge(
+        screen,
+        fonts,
+        status_label,
+        (badge_x + first_width + 12, 28),
+        status_color,
+    )
+
+
+def draw_direction_arrow(
+    screen: pygame.Surface,
+    center: tuple[int, int],
+    orientation: str,
+) -> None:
+    x, y = center
+    if orientation == "right":
+        points = [(x - 11, y - 6), (x + 3, y - 6), (x + 3, y - 11), (x + 14, y), (x + 3, y + 11), (x + 3, y + 6), (x - 11, y + 6)]
+    else:
+        points = [(x - 6, y + 11), (x - 6, y - 3), (x - 11, y - 3), (x, y - 14), (x + 11, y - 3), (x + 6, y - 3), (x + 6, y + 11)]
+    pygame.draw.polygon(screen, (185, 192, 197), points)
+
+
+def draw_crosswalk(
+    screen: pygame.Surface,
+    horizontal: bool,
+    position: tuple[int, int],
+) -> None:
+    x, y = position
+    if horizontal:
+        for index in range(7):
+            pygame.draw.rect(
+                screen,
+                (215, 219, 222),
+                pygame.Rect(x + index * 17, y, 10, 42),
+                border_radius=2,
+            )
+    else:
+        for index in range(7):
+            pygame.draw.rect(
+                screen,
+                (215, 219, 222),
+                pygame.Rect(x, y + index * 17, 42, 10),
+                border_radius=2,
+            )
+
+
+def draw_road(
+    screen: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+) -> None:
+    # Área de simulação
+    pygame.draw.rect(
+        screen,
+        BG,
+        pygame.Rect(0, HEADER_HEIGHT, SIM_WIDTH, HEIGHT - HEADER_HEIGHT),
+    )
+
+    # Quadras / calçadas
+    pygame.draw.rect(screen, SIDEWALK, pygame.Rect(0, 326, SIM_WIDTH, 208))
+    pygame.draw.rect(screen, SIDEWALK, pygame.Rect(401, HEADER_HEIGHT, 208, HEIGHT - HEADER_HEIGHT))
+
+    # Vias
+    pygame.draw.rect(screen, ROAD, pygame.Rect(0, 342, SIM_WIDTH, 176))
+    pygame.draw.rect(screen, ROAD, pygame.Rect(417, HEADER_HEIGHT, 176, HEIGHT - HEADER_HEIGHT))
+
+    # Bordas
+    pygame.draw.line(screen, ROAD_EDGE, (0, 342), (SIM_WIDTH, 342), 2)
+    pygame.draw.line(screen, ROAD_EDGE, (0, 518), (SIM_WIDTH, 518), 2)
+    pygame.draw.line(screen, ROAD_EDGE, (417, HEADER_HEIGHT), (417, HEIGHT), 2)
+    pygame.draw.line(screen, ROAD_EDGE, (593, HEADER_HEIGHT), (593, HEIGHT), 2)
+
+    # Linhas de faixa
+    for x in range(10, SIM_WIDTH - 20, 48):
+        if x < 400 or x > 610:
+            pygame.draw.line(screen, LANE, (x, CENTER_Y), (x + 25, CENTER_Y), 2)
+
+    for y in range(HEADER_HEIGHT + 8, HEIGHT - 20, 48):
+        if y < 325 or y > 535:
+            pygame.draw.line(screen, LANE, (CENTER_X, y), (CENTER_X, y + 25), 2)
 
     # Linhas de parada
-    pygame.draw.line(screen, WHITE, (386, 290), (386, 430), 5)
-    pygame.draw.line(screen, WHITE, (405, 450), (545, 450), 5)
+    pygame.draw.line(screen, WHITE, (395, 348), (395, 512), 5)
+    pygame.draw.line(screen, WHITE, (423, 540), (587, 540), 5)
+
+    # Faixas de pedestres
+    draw_crosswalk(screen, False, (369, 354))
+    draw_crosswalk(screen, True, (427, 523))
+
+    # Setas de direção
+    draw_direction_arrow(screen, (235, CENTER_Y - 44), "right")
+    draw_direction_arrow(screen, (CENTER_X + 44, 690), "up")
+
+    # Rótulos das vias
+    rounded_rect(screen, pygame.Rect(35, 548, 284, 34), SURFACE_2, 9, BORDER)
+    draw_text(
+        screen,
+        fonts,
+        "AV. BARÃO DE MARUIM / DES. MAYNARD",
+        (49, 557),
+        "road",
+        TEXT,
+    )
+
+    vertical_label = fonts["road"].render("AV. AUGUSTO FRANCO", True, TEXT)
+    vertical_label = pygame.transform.rotate(vertical_label, 90)
+    vertical_box = pygame.Rect(626, 121, 36, 204)
+    rounded_rect(screen, vertical_box, SURFACE_2, 9, BORDER)
+    screen.blit(vertical_label, vertical_label.get_rect(center=vertical_box.center))
+
+    # Identificação do cruzamento
+    rounded_rect(screen, pygame.Rect(28, 108, 310, 70), SURFACE, 12, BORDER)
+    draw_text(screen, fonts, "CENÁRIO PILOTO", (45, 122), "eyebrow", ACCENT)
+    draw_text(
+        screen,
+        fonts,
+        "Augusto Franco × Des. Maynard",
+        (45, 146),
+        "body_bold",
+        TEXT,
+    )
 
 
-def draw_signal(screen: pygame.Surface, phase: str) -> None:
-    # Barão/Maynard
-    pygame.draw.rect(screen, (25, 25, 25), pygame.Rect(365, 245, 38, 82), border_radius=6)
-    pygame.draw.circle(screen, GREEN if phase == "BARAO_GREEN" else RED, (384, 286), 11)
+def draw_traffic_light(
+    screen: pygame.Surface,
+    position: tuple[int, int],
+    active: str,
+    orientation: str = "vertical",
+) -> None:
+    x, y = position
+    if orientation == "vertical":
+        rect = pygame.Rect(x, y, 42, 104)
+        centers = [(x + 21, y + 22), (x + 21, y + 52), (x + 21, y + 82)]
+    else:
+        rect = pygame.Rect(x, y, 104, 42)
+        centers = [(x + 22, y + 21), (x + 52, y + 21), (x + 82, y + 21)]
 
-    # Augusto Franco
-    pygame.draw.rect(screen, (25, 25, 25), pygame.Rect(560, 438, 82, 38), border_radius=6)
-    pygame.draw.circle(screen, GREEN if phase == "AUGUSTO_GREEN" else RED, (601, 457), 11)
+    rounded_rect(screen, rect, (15, 20, 25), 9, (83, 91, 98))
+    colors = {
+        "red": RED if active == "red" else (74, 43, 43),
+        "yellow": YELLOW if active == "yellow" else (76, 68, 41),
+        "green": GREEN if active == "green" else (39, 71, 53),
+    }
+
+    for center, name in zip(centers, ("red", "yellow", "green")):
+        pygame.draw.circle(screen, (8, 12, 15), center, 11)
+        pygame.draw.circle(screen, colors[name], center, 8)
+
+
+def draw_signals(screen: pygame.Surface, phase: str) -> None:
+    barao_active = "green" if phase == "BARAO_GREEN" else "red"
+    augusto_active = "green" if phase == "AUGUSTO_GREEN" else "red"
+
+    draw_traffic_light(screen, (350, 221), barao_active, "vertical")
+    draw_traffic_light(screen, (619, 538), augusto_active, "horizontal")
+
+
+def draw_vehicle(
+    screen: pygame.Surface,
+    x: int,
+    y: int,
+    horizontal: bool,
+    color: tuple[int, int, int],
+    queued: bool,
+) -> None:
+    if horizontal:
+        body = pygame.Rect(x - 20, y - 10, 40, 20)
+        window = pygame.Rect(x - 5, y - 7, 13, 14)
+    else:
+        body = pygame.Rect(x - 10, y - 20, 20, 40)
+        window = pygame.Rect(x - 7, y - 5, 14, 13)
+
+    pygame.draw.rect(screen, (8, 14, 19), body.move(2, 3), border_radius=5)
+    pygame.draw.rect(screen, color, body, border_radius=5)
+    pygame.draw.rect(screen, (177, 213, 229), window, border_radius=3)
+
+    if queued:
+        pygame.draw.rect(screen, WHITE, body, 2, border_radius=5)
 
 
 def draw_vehicles(screen: pygame.Surface, simulator: TrafficDemandSimulator) -> None:
     for vehicle in simulator.active_vehicles:
         x, y = world_to_screen(vehicle)
-        if vehicle.origin_axis == BARAO_AXIS:
-            rect = pygame.Rect(x - 18, y - 9, 36, 18)
-            color = CAR_A
-        else:
-            rect = pygame.Rect(x - 9, y - 18, 18, 36)
-            color = CAR_B
+        horizontal = vehicle.origin_axis == BARAO_AXIS
+        color = CAR_A if horizontal else CAR_B
+        draw_vehicle(
+            screen,
+            x,
+            y,
+            horizontal=horizontal,
+            color=color,
+            queued=vehicle.state == "QUEUED",
+        )
 
-        if vehicle.state == "QUEUED":
-            pygame.draw.rect(screen, color, rect, border_radius=4)
-            pygame.draw.rect(screen, WHITE, rect, 2, border_radius=4)
-        else:
-            pygame.draw.rect(screen, color, rect, border_radius=4)
+
+def draw_metric_card(
+    screen: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+    rect: pygame.Rect,
+    label: str,
+    value: str,
+    accent: tuple[int, int, int] = ACCENT,
+) -> None:
+    rounded_rect(screen, rect, CARD, 12, BORDER)
+    pygame.draw.rect(
+        screen,
+        accent,
+        pygame.Rect(rect.x, rect.y, 4, rect.height),
+        border_radius=2,
+    )
+    draw_text(screen, fonts, label.upper(), (rect.x + 16, rect.y + 13), "metric_label", MUTED)
+    draw_text(screen, fonts, value, (rect.x + 16, rect.y + 35), "metric_value", TEXT)
+
+
+def draw_queue_chart(
+    screen: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+    rect: pygame.Rect,
+    barao_history: deque[int],
+    augusto_history: deque[int],
+) -> None:
+    rounded_rect(screen, rect, CARD, 12, BORDER)
+    draw_text(screen, fonts, "FILAS AO VIVO", (rect.x + 16, rect.y + 12), "metric_label", MUTED)
+
+    chart = pygame.Rect(rect.x + 16, rect.y + 43, rect.width - 32, rect.height - 64)
+    pygame.draw.line(screen, BORDER, (chart.x, chart.bottom), (chart.right, chart.bottom), 1)
+    pygame.draw.line(screen, BORDER, (chart.x, chart.y), (chart.x, chart.bottom), 1)
+
+    values = list(barao_history) + list(augusto_history)
+    max_value = max(4, max(values, default=0))
+
+    def draw_series(history: deque[int], color: tuple[int, int, int]) -> None:
+        if len(history) < 2:
+            return
+        points = []
+        items = list(history)
+        for index, value in enumerate(items):
+            x = chart.x + (index / max(1, len(items) - 1)) * chart.width
+            y = chart.bottom - (value / max_value) * chart.height
+            points.append((int(x), int(y)))
+        pygame.draw.lines(screen, color, False, points, 2)
+
+    draw_series(barao_history, CAR_A)
+    draw_series(augusto_history, CAR_B)
+
+    pygame.draw.circle(screen, CAR_A, (rect.x + 18, rect.bottom - 13), 4)
+    draw_text(screen, fonts, "Barão/Maynard", (rect.x + 28, rect.bottom - 21), "tiny", MUTED)
+    pygame.draw.circle(screen, CAR_B, (rect.x + 140, rect.bottom - 13), 4)
+    draw_text(screen, fonts, "Augusto Franco", (rect.x + 150, rect.bottom - 21), "tiny", MUTED)
 
 
 def draw_panel(
@@ -121,38 +449,98 @@ def draw_panel(
     phase: str,
     paused: bool,
     speed_multiplier: float,
+    scenario: dict,
+    barao_history: deque[int],
+    augusto_history: deque[int],
 ) -> None:
-    pygame.draw.rect(screen, PANEL, pygame.Rect(950, 0, 330, 720))
+    pygame.draw.rect(screen, SURFACE, pygame.Rect(PANEL_X, 0, PANEL_WIDTH, HEIGHT))
+    pygame.draw.line(screen, BORDER, (PANEL_X, 0), (PANEL_X, HEIGHT), 1)
 
-    def text(value: str, y: int, font: str = "body", color=TEXT):
-        surface = fonts[font].render(value, True, color)
-        screen.blit(surface, (980, y))
+    left = PANEL_X + 24
+    width = PANEL_WIDTH - 48
 
-    text("SERGIPE TRAFFIC AI", 35, "title")
-    text("Protótipo visual — Check-in 2", 73, "small", MUTED)
+    draw_text(screen, fonts, "PAINEL DE OPERAÇÃO", (left, 24), "eyebrow", ACCENT)
+    draw_text(screen, fonts, "Telemetria do cenário", (left, 47), "panel_title", TEXT)
 
-    text("Cenário piloto", 120, "heading")
-    text("Aracaju / Sergipe", 154)
-    text("Augusto Franco × Des. Maynard", 180, "small", MUTED)
+    scenario_id = scenario.get("scenario", {}).get("id", "cenário")
+    seed = scenario.get("scenario", {}).get("seed", 42)
+    draw_text(screen, fonts, scenario_id, (left, 78), "tiny", MUTED)
 
-    text("Controle", 230, "heading")
-    text(f"Controlador: {controller_name.upper()}", 266)
-    text(f"Fase: {phase}", 292, "small", MUTED)
+    controller_label = "Adaptativo por regras" if controller_name == "adaptive" else "Tempo fixo (baseline)"
+    phase_label = "Barão/Maynard liberado" if phase == "BARAO_GREEN" else "Augusto Franco liberado"
 
-    text("Telemetria", 342, "heading")
-    text(f"Tempo: {simulator.current_time:6.1f} s", 378)
-    text(f"Fila Barão/Maynard: {simulator.queue_length(BARAO_AXIS)}", 407)
-    text(f"Fila Augusto Franco: {simulator.queue_length(AUGUSTO_AXIS)}", 436)
-    text(f"Espera média: {simulator.average_wait():.1f} s", 465)
-    text(f"Veículos ativos: {len(simulator.active_vehicles)}", 494)
-    text(f"Veículos concluídos: {simulator.completed_vehicles_count}", 523)
+    rounded_rect(screen, pygame.Rect(left, 107, width, 76), CARD_ALT, 12, BORDER)
+    draw_text(screen, fonts, "CONTROLADOR", (left + 16, 119), "metric_label", MUTED)
+    draw_text(screen, fonts, controller_label, (left + 16, 141), "body_bold", TEXT)
+    draw_text(screen, fonts, phase_label, (left + 16, 162), "tiny", GREEN)
 
-    text("Dados", 573, "heading")
-    text("Demanda: sintética / seed reproduzível", 607, "small", MUTED)
-    text("Rede: cenário inspirado em Aracaju", 630, "small", MUTED)
+    gap = 10
+    card_width = (width - gap) // 2
+    draw_metric_card(
+        screen,
+        fonts,
+        pygame.Rect(left, 199, card_width, 78),
+        "Tempo simulado",
+        f"{simulator.current_time:.1f} s",
+        ACCENT,
+    )
+    draw_metric_card(
+        screen,
+        fonts,
+        pygame.Rect(left + card_width + gap, 199, card_width, 78),
+        "Concluídos",
+        str(simulator.completed_vehicles_count),
+        GREEN,
+    )
+    draw_metric_card(
+        screen,
+        fonts,
+        pygame.Rect(left, 287, card_width, 78),
+        "Fila Barão",
+        str(simulator.queue_length(BARAO_AXIS)),
+        CAR_A,
+    )
+    draw_metric_card(
+        screen,
+        fonts,
+        pygame.Rect(left + card_width + gap, 287, card_width, 78),
+        "Fila Augusto",
+        str(simulator.queue_length(AUGUSTO_AXIS)),
+        CAR_B,
+    )
 
-    state = "PAUSADO" if paused else f"{speed_multiplier:g}x"
-    text(f"[ESPAÇO] pausa  [R] reset  [1/2] controle  [{state}]", 674, "small", MUTED)
+    draw_metric_card(
+        screen,
+        fonts,
+        pygame.Rect(left, 375, width, 72),
+        "Espera média dos veículos ativos",
+        f"{simulator.average_wait():.1f} s",
+        YELLOW,
+    )
+
+    draw_queue_chart(
+        screen,
+        fonts,
+        pygame.Rect(left, 463, width, 180),
+        barao_history,
+        augusto_history,
+    )
+
+    rounded_rect(screen, pygame.Rect(left, 660, width, 82), CARD_ALT, 12, BORDER)
+    draw_text(screen, fonts, "DADOS DO EXPERIMENTO", (left + 16, 672), "metric_label", MUTED)
+    draw_text(screen, fonts, f"Demanda sintética • seed {seed}", (left + 16, 696), "small", TEXT)
+    draw_text(screen, fonts, "Cenário inspirado em Aracaju/SE", (left + 16, 718), "tiny", MUTED)
+
+    state = "PAUSADO" if paused else f"{speed_multiplier:g}×"
+    rounded_rect(screen, pygame.Rect(left, 756, width, 42), SURFACE_2, 10, BORDER)
+    draw_text(
+        screen,
+        fonts,
+        f"ESPAÇO pausa • R reset • 1 fixo • 2 adaptativo • ↑↓ velocidade • {state}",
+        (left + 11, 769),
+        "tiny",
+        MUTED,
+    )
 
 
 def main() -> None:
@@ -171,14 +559,21 @@ def main() -> None:
 
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Sergipe Traffic AI — Check-in 2")
+    pygame.display.set_caption("Sergipe Traffic AI • Laboratório de Controle Semafórico")
     clock = pygame.time.Clock()
 
     fonts = {
-        "title": pygame.font.SysFont("segoeui", 28, bold=True),
-        "heading": pygame.font.SysFont("segoeui", 19, bold=True),
-        "body": pygame.font.SysFont("segoeui", 17),
+        "title": pygame.font.SysFont("segoeui", 27, bold=True),
+        "panel_title": pygame.font.SysFont("segoeui", 22, bold=True),
+        "body": pygame.font.SysFont("segoeui", 16),
+        "body_bold": pygame.font.SysFont("segoeui", 16, bold=True),
         "small": pygame.font.SysFont("segoeui", 13),
+        "tiny": pygame.font.SysFont("segoeui", 11),
+        "road": pygame.font.SysFont("segoeui", 12, bold=True),
+        "badge": pygame.font.SysFont("segoeui", 11, bold=True),
+        "eyebrow": pygame.font.SysFont("segoeui", 11, bold=True),
+        "metric_label": pygame.font.SysFont("segoeui", 10, bold=True),
+        "metric_value": pygame.font.SysFont("segoeui", 24, bold=True),
     }
 
     scenario = load_scenario(str(scenario_path))
@@ -192,6 +587,12 @@ def main() -> None:
     accumulator = 0.0
     speed_multiplier = 1.0
     current_phase = "BARAO_GREEN"
+
+    barao_history: deque[int] = deque(maxlen=80)
+    augusto_history: deque[int] = deque(maxlen=80)
+    barao_history.append(0)
+    augusto_history.append(0)
+    last_history_second = -1
 
     while running:
         real_dt = clock.tick(FPS) / 1000.0
@@ -208,6 +609,11 @@ def main() -> None:
                     simulator.reset()
                     controller.reset(scenario)
                     current_phase = "BARAO_GREEN"
+                    barao_history.clear()
+                    augusto_history.clear()
+                    barao_history.append(0)
+                    augusto_history.append(0)
+                    last_history_second = -1
                 elif event.key == pygame.K_1:
                     controller_name = "fixed"
                     controller = build_controller(controller_name)
@@ -227,22 +633,30 @@ def main() -> None:
             while accumulator >= simulator.time_step_s:
                 simulator.generate_vehicles_step()
                 observation = axis_observation(simulator)
-
-                if controller_name == "fixed":
-                    current_phase = controller.decide(observation, simulator.current_time)
-                else:
-                    current_phase = controller.decide(observation, simulator.current_time)
-
+                current_phase = controller.decide(observation, simulator.current_time)
                 simulator.step(current_phase)
                 accumulator -= simulator.time_step_s
+
+                current_second = int(simulator.current_time)
+                if current_second != last_history_second:
+                    barao_history.append(simulator.queue_length(BARAO_AXIS))
+                    augusto_history.append(simulator.queue_length(AUGUSTO_AXIS))
+                    last_history_second = current_second
 
                 if simulator.current_time >= simulator.duration_s:
                     paused = True
                     break
 
         screen.fill(BG)
-        draw_road(screen)
-        draw_signal(screen, current_phase)
+        draw_header(
+            screen,
+            fonts,
+            controller_name,
+            paused,
+            speed_multiplier,
+        )
+        draw_road(screen, fonts)
+        draw_signals(screen, current_phase)
         draw_vehicles(screen, simulator)
         draw_panel(
             screen,
@@ -252,6 +666,9 @@ def main() -> None:
             current_phase,
             paused,
             speed_multiplier,
+            scenario,
+            barao_history,
+            augusto_history,
         )
 
         pygame.display.flip()

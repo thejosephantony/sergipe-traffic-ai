@@ -737,7 +737,6 @@ def draw_queue_chart(
     rect: pygame.Rect,
     barao_history: deque[int],
     augusto_history: deque[int],
-    audio_enabled: bool,
 ) -> None:
     rounded_rect(screen, rect, CARD, 12, BORDER)
     draw_text(screen, fonts, "FILAS AO VIVO", (rect.x + 16, rect.y + 12), "metric_label", MUTED)
@@ -780,6 +779,7 @@ def draw_panel(
     scenario: dict,
     barao_history: deque[int],
     augusto_history: deque[int],
+    audio_enabled: bool,
 ) -> None:
     pygame.draw.rect(screen, SURFACE, pygame.Rect(PANEL_X, 0, PANEL_WIDTH, HEIGHT))
     pygame.draw.line(screen, BORDER, (PANEL_X, 0), (PANEL_X, HEIGHT), 1)

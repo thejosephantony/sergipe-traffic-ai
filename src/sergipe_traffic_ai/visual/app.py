@@ -19,6 +19,10 @@ from sergipe_traffic_ai.traffic.demand import (
     TrafficDemandSimulator,
 )
 from sergipe_traffic_ai.visual.audio import AudioManager
+from sergipe_traffic_ai.visual.osm_map import (
+    build_osm_map_context,
+    vehicle_pose_on_osm,
+)
 
 
 WIDTH = 1440
@@ -69,6 +73,13 @@ GLOW_ALPHA = 52
 
 CENTER_X = 505
 CENTER_Y = 430
+
+OSM_GEOJSON_PATH = Path(
+    "experiments/output/checkin2/osm/osm_road_network.geojson"
+)
+OSM_SUMMARY_PATH = Path(
+    "experiments/output/checkin2/osm/osm_summary.json"
+)
 
 
 def load_scenario(path: str) -> dict:
@@ -873,6 +884,299 @@ def draw_data_overlay(
     )
 
 
+def _axis_signal_color(phase: str, axis: str) -> tuple[int, int, int]:
+    if axis == "barao":
+        if phase == "BARAO_GREEN":
+            return GREEN
+        if phase == "BARAO_YELLOW":
+            return YELLOW
+        return RED
+
+    if phase == "AUGUSTO_GREEN":
+        return GREEN
+    if phase == "AUGUSTO_YELLOW":
+        return YELLOW
+    return RED
+
+
+def draw_osm_map(
+    screen: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+    context: dict,
+    phase: str,
+) -> None:
+    pygame.draw.rect(
+        screen,
+        (13, 26, 37),
+        pygame.Rect(
+            0,
+            HEADER_HEIGHT,
+            SIM_WIDTH,
+            HEIGHT - HEADER_HEIGHT,
+        ),
+    )
+
+    for road in context["roads"]:
+        points = [
+            (int(point[0]), int(point[1]))
+            for point in road["points"]
+        ]
+        if len(points) < 2:
+            continue
+
+        width = int(road["width"])
+        axis = road.get("axis")
+
+        pygame.draw.lines(
+            screen,
+            (22, 34, 43),
+            False,
+            points,
+            width + 5,
+        )
+
+        if axis == "barao":
+            road_color = (72, 101, 119)
+            width += 3
+        elif axis == "augusto":
+            road_color = (78, 96, 110)
+            width += 3
+        else:
+            road_color = (52, 66, 76)
+
+        pygame.draw.lines(
+            screen,
+            road_color,
+            False,
+            points,
+            width,
+        )
+
+        if road.get("oneway") and len(points) >= 2:
+            midpoint_index = len(points) // 2
+            x, y = points[midpoint_index]
+            pygame.draw.circle(
+                screen,
+                SUBTLE,
+                (x, y),
+                2,
+            )
+
+    anchor_x, anchor_y = context["anchor"]
+    anchor = (int(anchor_x), int(anchor_y))
+
+    pygame.draw.circle(
+        screen,
+        (11, 19, 27),
+        anchor,
+        26,
+    )
+    pygame.draw.circle(
+        screen,
+        (72, 87, 99),
+        anchor,
+        24,
+        2,
+    )
+
+    barao = context["axis_vectors"]["barao"]
+    augusto = context["axis_vectors"]["augusto"]
+
+    for axis, vector in (
+        ("barao", barao),
+        ("augusto", augusto),
+    ):
+        signal_color = _axis_signal_color(
+            phase,
+            axis,
+        )
+        perpendicular = (-vector[1], vector[0])
+
+        for sign in (-1.0, 1.0):
+            signal_x = (
+                anchor_x
+                + vector[0] * 34 * sign
+                + perpendicular[0] * 13
+            )
+            signal_y = (
+                anchor_y
+                + vector[1] * 34 * sign
+                + perpendicular[1] * 13
+            )
+            pygame.draw.circle(
+                screen,
+                (8, 13, 18),
+                (int(signal_x), int(signal_y)),
+                8,
+            )
+            pygame.draw.circle(
+                screen,
+                signal_color,
+                (int(signal_x), int(signal_y)),
+                5,
+            )
+
+    rounded_rect(
+        screen,
+        pygame.Rect(28, 108, 354, 72),
+        SURFACE,
+        12,
+        BORDER,
+    )
+    draw_text(
+        screen,
+        fonts,
+        "MAPA REAL • OPENSTREETMAP",
+        (45, 121),
+        "eyebrow",
+        GREEN,
+    )
+    draw_text(
+        screen,
+        fonts,
+        "Rede viária do entorno do cenário piloto",
+        (45, 145),
+        "body_bold",
+        TEXT,
+    )
+    draw_text(
+        screen,
+        fonts,
+        (
+            f"{context['road_count']} trechos • "
+            f"piloto {context['pilot_feature_counts']['barao']}+"
+            f"{context['pilot_feature_counts']['augusto']}"
+        ),
+        (45, 164),
+        "tiny",
+        MUTED,
+    )
+
+    draw_text(
+        screen,
+        fonts,
+        "© OpenStreetMap contributors • ODbL 1.0",
+        (28, HEIGHT - 24),
+        "tiny",
+        MUTED,
+    )
+
+
+def draw_osm_missing_hint(
+    screen: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+) -> None:
+    rounded_rect(
+        screen,
+        pygame.Rect(344, HEIGHT - 49, 645, 34),
+        SURFACE_2,
+        9,
+        BORDER,
+    )
+    draw_text(
+        screen,
+        fonts,
+        "Mapa OSM indisponível • execute o pipeline com --fetch-osm e reinicie",
+        (361, HEIGHT - 40),
+        "tiny",
+        YELLOW,
+    )
+
+
+def draw_osm_vehicle(
+    screen: pygame.Surface,
+    vehicle,
+    context: dict,
+) -> None:
+    front, direction = vehicle_pose_on_osm(
+        vehicle.movement,
+        vehicle.position,
+        context,
+    )
+
+    dimensions = {
+        "car": (36.0, 17.0, VEHICLE_CAR),
+        "motorcycle": (24.0, 8.0, VEHICLE_MOTORCYCLE),
+        "bus": (58.0, 20.0, VEHICLE_BUS),
+    }
+    length, width, color = dimensions[vehicle.vehicle_type]
+
+    center_x = front[0] - direction[0] * length / 2.0
+    center_y = front[1] - direction[1] * length / 2.0
+    perpendicular = (-direction[1], direction[0])
+
+    def corners(
+        offset_x: float = 0.0,
+        offset_y: float = 0.0,
+    ) -> list[tuple[int, int]]:
+        return [
+            (
+                int(
+                    center_x
+                    + direction[0] * longitudinal
+                    + perpendicular[0] * lateral
+                    + offset_x
+                ),
+                int(
+                    center_y
+                    + direction[1] * longitudinal
+                    + perpendicular[1] * lateral
+                    + offset_y
+                ),
+            )
+            for longitudinal, lateral in (
+                (length / 2, width / 2),
+                (length / 2, -width / 2),
+                (-length / 2, -width / 2),
+                (-length / 2, width / 2),
+            )
+        ]
+
+    pygame.draw.polygon(
+        screen,
+        (7, 13, 18),
+        corners(2.0, 3.0),
+    )
+    body_points = corners()
+    pygame.draw.polygon(
+        screen,
+        color,
+        body_points,
+    )
+
+    windshield_center = (
+        int(
+            center_x
+            + direction[0] * length * 0.20
+        ),
+        int(
+            center_y
+            + direction[1] * length * 0.20
+        ),
+    )
+    pygame.draw.circle(
+        screen,
+        (183, 216, 231),
+        windshield_center,
+        max(2, int(width * 0.22)),
+    )
+
+    pygame.draw.circle(
+        screen,
+        WHITE,
+        (int(front[0]), int(front[1])),
+        2,
+    )
+
+    if vehicle.state == "QUEUED":
+        pygame.draw.polygon(
+            screen,
+            WHITE,
+            body_points,
+            2,
+        )
+
+
 def draw_vehicle(
     screen: pygame.Surface,
     x: int,
@@ -955,8 +1259,21 @@ def draw_vehicle(
         pygame.draw.rect(screen, WHITE, body, 2, border_radius=5)
 
 
-def draw_vehicles(screen: pygame.Surface, simulator: TrafficDemandSimulator) -> None:
+def draw_vehicles(
+    screen: pygame.Surface,
+    simulator: TrafficDemandSimulator,
+    osm_context: dict | None = None,
+    osm_mode: bool = False,
+) -> None:
     for vehicle in simulator.active_vehicles:
+        if osm_mode and osm_context is not None:
+            draw_osm_vehicle(
+                screen,
+                vehicle,
+                osm_context,
+            )
+            continue
+
         x, y, heading = world_to_screen(vehicle)
         horizontal = vehicle.origin_axis == BARAO_AXIS
         draw_vehicle(
@@ -1171,7 +1488,7 @@ def draw_panel(
     draw_text(
         screen,
         fonts,
-        "ESPAÇO Pausa • R Reset • 1/2 Controle • D Dados • M Áudio",
+        "ESPAÇO Pausa • R Reset • 1/2 Controle • D Dados • G Mapa",
         (left + 12, 762),
         "tiny",
         MUTED,
@@ -1179,7 +1496,7 @@ def draw_panel(
     draw_text(
         screen,
         fonts,
-        f"↑↓ Velocidade • {state}",
+        f"M Áudio • ↑↓ Velocidade • {state}",
         (left + 12, 784),
         "tiny",
         MUTED,
@@ -1236,9 +1553,22 @@ def main() -> None:
     }
 
     scenario = load_scenario(str(scenario_path))
-    osm_summary = load_optional_json(
-        Path("experiments/output/checkin2/osm/osm_summary.json")
-    )
+    osm_summary = load_optional_json(OSM_SUMMARY_PATH)
+    osm_geojson = load_optional_json(OSM_GEOJSON_PATH)
+
+    osm_context = None
+    if osm_geojson is not None:
+        try:
+            osm_context = build_osm_map_context(
+                osm_geojson,
+                scenario,
+                width=SIM_WIDTH,
+                top=HEADER_HEIGHT,
+                bottom=HEIGHT,
+            )
+        except ValueError:
+            osm_context = None
+
     simulator = TrafficDemandSimulator(scenario)
     controller_name = args.controller
     controller = build_controller(controller_name)
@@ -1246,6 +1576,7 @@ def main() -> None:
 
     paused = False
     data_overlay = False
+    osm_mode = osm_context is not None
     running = True
     accumulator = 0.0
     speed_multiplier = 1.0
@@ -1291,6 +1622,10 @@ def main() -> None:
                 elif event.key == pygame.K_d:
                     data_overlay = not data_overlay
                     audio.play_ui()
+                elif event.key == pygame.K_g:
+                    if osm_context is not None:
+                        osm_mode = not osm_mode
+                        audio.play_ui()
                 elif event.key == pygame.K_m:
                     audio.toggle()
                     if audio.is_enabled:
@@ -1338,10 +1673,29 @@ def main() -> None:
             paused,
             speed_multiplier,
         )
-        draw_road(screen, fonts)
+        if osm_mode and osm_context is not None:
+            draw_osm_map(
+                screen,
+                fonts,
+                osm_context,
+                current_phase,
+            )
+        else:
+            draw_road(screen, fonts)
+            draw_signals(screen, current_phase)
+            if osm_context is None:
+                draw_osm_missing_hint(
+                    screen,
+                    fonts,
+                )
+
         draw_fleet_legend(screen, fonts)
-        draw_signals(screen, current_phase)
-        draw_vehicles(screen, simulator)
+        draw_vehicles(
+            screen,
+            simulator,
+            osm_context=osm_context,
+            osm_mode=osm_mode,
+        )
         draw_panel(
             screen,
             fonts,

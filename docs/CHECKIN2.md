@@ -152,6 +152,8 @@ python -m sergipe_traffic_ai.visual.app
 
 Use a tecla **D** para abrir o resumo de **Dados & Pré-processamento** durante a apresentação.
 
+Se o GeoJSON do OpenStreetMap já tiver sido gerado, o Pygame inicia em **modo OSM**. A tecla **G** alterna entre a rede viária real projetada e a representação esquemática anterior. Os veículos são alinhados aos eixos viários identificados pelo nome das vias do cenário piloto.
+
 ## Roteiro de fala curto
 
 > O projeto usa uma estratégia híbrida de dados. O IBGE fornece o contexto territorial e o OpenStreetMap, consultado pela Overpass API, fornece a rede viária do entorno do cenário piloto. Nós pré-processamos as vias para normalizar atributos como sentido, faixas e velocidade máxima. Nesta etapa, porém, a demanda de veículos ainda é sintética e reproduzível por seed; portanto, não afirmamos usar contagens reais de tráfego de Aracaju. Como referência experimental, usamos um controlador de tempo fixo sem IA. Nas etapas seguintes, esse baseline será comparado com controladores adaptativos e com Reinforcement Learning.

@@ -615,6 +615,226 @@ def draw_signals(screen: pygame.Surface, phase: str) -> None:
     draw_traffic_light(screen, (341, 242), augusto_active, "horizontal")
 
 
+def draw_data_overlay(
+    screen: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+    scenario: dict,
+) -> None:
+    dim = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    dim.fill((4, 10, 16, 205))
+    screen.blit(dim, (0, 0))
+
+    card = pygame.Rect(105, 82, 1230, 656)
+    draw_elevated_rect(
+        screen,
+        card,
+        (18, 34, 49),
+        18,
+        (58, 88, 108),
+    )
+
+    draw_text(
+        screen,
+        fonts,
+        "CHECK-IN 2 • DADOS & PRÉ-PROCESSAMENTO",
+        (140, 116),
+        "eyebrow",
+        ACCENT,
+    )
+    draw_text(
+        screen,
+        fonts,
+        "Rastreabilidade dos dados usados no protótipo",
+        (140, 141),
+        "panel_title",
+        TEXT,
+    )
+    draw_text(
+        screen,
+        fonts,
+        "D fecha esta tela • a simulação continua disponível ao fundo",
+        (140, 174),
+        "small",
+        MUTED,
+    )
+
+    left_x = 140
+    right_x = 755
+    section_y = 220
+
+    draw_text(
+        screen,
+        fonts,
+        "FONTES",
+        (left_x, section_y),
+        "metric_label",
+        ACCENT,
+    )
+
+    source_rows = [
+        (
+            "IBGE • Sergipe (UF 28)",
+            "API oficial de malhas • contexto geográfico",
+            GREEN,
+        ),
+        (
+            "IBGE • Aracaju (2800308)",
+            "API oficial de malhas • recorte municipal",
+            GREEN,
+        ),
+        (
+            "OpenStreetMap",
+            "rede viária • próxima ingestão • ODbL",
+            YELLOW,
+        ),
+        (
+            "Demanda sintética",
+            "ativa no protótipo • seed reproduzível",
+            BLUE,
+        ),
+    ]
+
+    y = section_y + 30
+    for title, subtitle, color in source_rows:
+        row = pygame.Rect(left_x, y, 545, 76)
+        draw_elevated_rect(
+            screen,
+            row,
+            CARD,
+            12,
+            BORDER,
+        )
+        pygame.draw.circle(
+            screen,
+            color,
+            (row.x + 20, row.y + 24),
+            6,
+        )
+        draw_text(
+            screen,
+            fonts,
+            title,
+            (row.x + 38, row.y + 13),
+            "body_bold",
+            TEXT,
+        )
+        draw_text(
+            screen,
+            fonts,
+            subtitle,
+            (row.x + 38, row.y + 41),
+            "small",
+            MUTED,
+        )
+        y += 88
+
+    draw_text(
+        screen,
+        fonts,
+        "PRÉ-PROCESSAMENTO",
+        (right_x, section_y),
+        "metric_label",
+        ACCENT,
+    )
+
+    steps = [
+        "1. validar estrutura e tipos",
+        "2. validar taxas de chegada",
+        "3. normalizar carro / moto / ônibus",
+        "4. normalizar demanda por sentido",
+        "5. derivar taxas por movimento",
+        "6. fixar seed para reprodutibilidade",
+        "7. registrar proveniência",
+    ]
+
+    y = section_y + 33
+    for step in steps:
+        pygame.draw.circle(
+            screen,
+            ACCENT,
+            (right_x + 7, y + 8),
+            3,
+        )
+        draw_text(
+            screen,
+            fonts,
+            step,
+            (right_x + 20, y),
+            "small",
+            TEXT,
+        )
+        y += 33
+
+    scenario_data = scenario.get("scenario", {})
+    demand = scenario_data.get("demand", {})
+    controller = scenario_data.get("controller", {})
+
+    summary = pygame.Rect(right_x, 495, 510, 176)
+    draw_elevated_rect(
+        screen,
+        summary,
+        CARD_ALT,
+        12,
+        BORDER,
+    )
+    draw_text(
+        screen,
+        fonts,
+        "BASELINE & PARÂMETROS ATUAIS",
+        (summary.x + 18, summary.y + 16),
+        "metric_label",
+        MUTED,
+    )
+    draw_text(
+        screen,
+        fonts,
+        "Baseline: semáforo de tempo fixo (sem IA)",
+        (summary.x + 18, summary.y + 43),
+        "body_bold",
+        TEXT,
+    )
+    draw_text(
+        screen,
+        fonts,
+        (
+            f"Seed {scenario_data.get('seed', 42)} • "
+            f"Barão {demand.get('axis_barao_maynard_rate', 0):.2f} veh/s • "
+            f"Augusto {demand.get('axis_augusto_franco_rate', 0):.2f} veh/s"
+        ),
+        (summary.x + 18, summary.y + 76),
+        "small",
+        TEXT,
+    )
+    draw_text(
+        screen,
+        fonts,
+        (
+            f"Amarelo {controller.get('yellow_s', 0)} s • "
+            f"Todos vermelhos {controller.get('all_red_s', 0)} s"
+        ),
+        (summary.x + 18, summary.y + 102),
+        "small",
+        TEXT,
+    )
+    draw_text(
+        screen,
+        fonts,
+        "Atenção: as taxas de tráfego atuais são sintéticas.",
+        (summary.x + 18, summary.y + 136),
+        "small",
+        YELLOW,
+    )
+
+    draw_text(
+        screen,
+        fonts,
+        "Pipeline executável: python -m sergipe_traffic_ai.data_pipeline.checkin2",
+        (140, 704),
+        "tiny",
+        MUTED,
+    )
+
+
 def draw_vehicle(
     screen: pygame.Surface,
     x: int,
@@ -984,6 +1204,7 @@ def main() -> None:
     controller.reset(scenario)
 
     paused = False
+    data_overlay = False
     running = True
     accumulator = 0.0
     speed_multiplier = 1.0
@@ -1026,6 +1247,9 @@ def main() -> None:
                     controller_name = "adaptive"
                     controller = build_controller(controller_name)
                     controller.reset(scenario)
+                elif event.key == pygame.K_d:
+                    data_overlay = not data_overlay
+                    audio.play_ui()
                 elif event.key == pygame.K_m:
                     audio.toggle()
                     if audio.is_enabled:
@@ -1090,6 +1314,13 @@ def main() -> None:
             augusto_history,
             audio.is_enabled,
         )
+
+        if data_overlay:
+            draw_data_overlay(
+                screen,
+                fonts,
+                scenario,
+            )
 
         pygame.display.flip()
 

@@ -1,6 +1,10 @@
 from sergipe_traffic_ai.traffic.demand import (
     AUGUSTO_AXIS,
+    AUGUSTO_NORTHBOUND,
+    AUGUSTO_SOUTHBOUND,
     BARAO_AXIS,
+    BARAO_EASTBOUND,
+    BARAO_WESTBOUND,
     TrafficDemandSimulator,
 )
 
@@ -29,7 +33,12 @@ def test_demand_is_reproducible():
     for _ in range(50):
         seq1.append(
             [
-                (v.vehicle_id, v.origin_axis, v.vehicle_type)
+                (
+                    v.vehicle_id,
+                    v.origin_axis,
+                    v.vehicle_type,
+                    v.movement,
+                )
                 for v in first.generate_vehicles_step()
             ]
         )
@@ -59,6 +68,7 @@ def test_red_axis_accumulates_queue_and_wait():
 
     assert sim.queue_length(AUGUSTO_AXIS) >= 1
     assert sim.average_wait(AUGUSTO_AXIS) > 0
+    assert vehicle.position == sim.stop_line_position_m
 
 
 def test_green_axis_completes_vehicle():
@@ -133,3 +143,104 @@ def test_completed_vehicles_are_counted_by_type():
 
     assert sim.completed_vehicles_count == 1
     assert sim.completed_vehicles_by_type["bus"] == 1
+
+
+def test_opposite_directions_have_independent_queues():
+    sim = TrafficDemandSimulator(scenario())
+    sim.rate_barao_maynard = 0.0
+    sim.rate_augusto_franco = 0.0
+
+    eastbound = sim._spawn_vehicle(
+        BARAO_AXIS,
+        "Leste",
+        "car",
+        BARAO_EASTBOUND,
+    )
+    westbound = sim._spawn_vehicle(
+        BARAO_AXIS,
+        "Oeste",
+        "car",
+        BARAO_WESTBOUND,
+    )
+
+    assert eastbound is not None
+    assert westbound is not None
+    assert eastbound.movement != westbound.movement
+    assert len(sim.active_vehicles) == 2
+
+
+def test_all_four_movements_stop_at_retention_line_on_red():
+    sim = TrafficDemandSimulator(scenario(duration_s=30.0))
+    sim.rate_barao_maynard = 0.0
+    sim.rate_augusto_franco = 0.0
+
+    movements = (
+        (BARAO_AXIS, BARAO_EASTBOUND, "Leste"),
+        (BARAO_AXIS, BARAO_WESTBOUND, "Oeste"),
+        (AUGUSTO_AXIS, AUGUSTO_NORTHBOUND, "Norte"),
+        (AUGUSTO_AXIS, AUGUSTO_SOUTHBOUND, "Sul"),
+    )
+
+    vehicles = []
+    for axis, movement, destination in movements:
+        vehicle = sim._spawn_vehicle(
+            axis,
+            destination,
+            "car",
+            movement,
+        )
+        assert vehicle is not None
+        vehicles.append(vehicle)
+
+    # Sem fase verde, todos devem parar exatamente na linha de retenção.
+    for _ in range(80):
+        sim.step(None)
+
+    assert all(
+        vehicle.position == sim.stop_line_position_m
+        for vehicle in vehicles
+    )
+    assert all(vehicle.state == "QUEUED" for vehicle in vehicles)
+
+
+def test_direction_split_is_normalized_per_axis():
+    config = scenario()
+    config["scenario"]["demand"]["direction_split"] = {
+        BARAO_EASTBOUND: 3,
+        BARAO_WESTBOUND: 1,
+        AUGUSTO_NORTHBOUND: 1,
+        AUGUSTO_SOUTHBOUND: 3,
+    }
+
+    sim = TrafficDemandSimulator(config)
+
+    assert sim.direction_split[BARAO_EASTBOUND] == 0.75
+    assert sim.direction_split[BARAO_WESTBOUND] == 0.25
+    assert sim.direction_split[AUGUSTO_NORTHBOUND] == 0.25
+    assert sim.direction_split[AUGUSTO_SOUTHBOUND] == 0.75
+
+
+def test_vehicle_already_in_intersection_does_not_move_back_on_red():
+    sim = TrafficDemandSimulator(scenario(duration_s=40.0))
+    sim.rate_barao_maynard = 0.0
+    sim.rate_augusto_franco = 0.0
+
+    vehicle = sim._spawn_vehicle(
+        BARAO_AXIS,
+        "Leste",
+        "car",
+        BARAO_EASTBOUND,
+    )
+    assert vehicle is not None
+
+    for _ in range(55):
+        sim.step("BARAO_GREEN")
+        if vehicle.position > 0:
+            break
+
+    assert vehicle.position > 0
+    position_after_entry = vehicle.position
+
+    sim.step("AUGUSTO_GREEN")
+
+    assert vehicle.position >= position_after_entry

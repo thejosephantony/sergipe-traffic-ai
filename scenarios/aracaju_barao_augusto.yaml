@@ -17,6 +17,12 @@ scenario:
       motorcycle: 0.18
       bus: 0.10
     vehicle_mix_note: "Distribuição sintética para prototipagem; não representa contagem veicular real do cruzamento."
+    direction_split:
+      barao_eastbound: 0.50
+      barao_westbound: 0.50
+      augusto_northbound: 0.50
+      augusto_southbound: 0.50
+    direction_split_note: "Divisão sintética equilibrada entre sentidos para prototipagem."
   controller:
     type: fixed
     min_green_s: 15

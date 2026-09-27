@@ -1,4 +1,4 @@
-﻿{
+{
   "scenario": {
     "id": "aracaju_barao_augusto_v1",
     "description": "Simulação inspirada no cruzamento de grande fluxo em Aracaju/SE envolvendo a Av. Barão de Maruim / Des. Maynard com a Av. Augusto Franco.",
@@ -13,7 +13,13 @@
     "time_step_s": 0.2,
     "demand": {
       "axis_barao_maynard_rate": 0.85,
-      "axis_augusto_franco_rate": 0.75
+      "axis_augusto_franco_rate": 0.75,
+      "vehicle_mix": {
+        "car": 0.72,
+        "motorcycle": 0.18,
+        "bus": 0.10
+      },
+      "vehicle_mix_note": "Distribuição sintética para prototipagem; não representa contagem veicular real do cruzamento."
     },
     "controller": {
       "type": "fixed",

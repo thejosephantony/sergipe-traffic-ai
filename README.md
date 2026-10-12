@@ -4,7 +4,7 @@ Laboratório virtual de Inteligência Artificial para simulação de trânsito e
 
 ## Objetivo
 
-Comparar controladores semafóricos **fixos**, **adaptativos** e, em fases posteriores, baseados em **Reinforcement Learning**, medindo impacto sobre tempo de espera, tamanho de filas, throughput e fluidez do tráfego.
+Comparar controladores semafóricos **fixos**, **adaptativos por regras** e **Q-Learning**, medindo impacto sobre tempo de espera, tamanho de filas, throughput e fluidez do tráfego.
 
 ## Estado atual
 
@@ -16,13 +16,16 @@ Comparar controladores semafóricos **fixos**, **adaptativos** e, em fases poste
 - fases verde, amarelo e todos-vermelhos;
 - controlador de tempo fixo (baseline);
 - controlador adaptativo heurístico;
+- ambiente causal de Reinforcement Learning;
+- agente Q-Learning tabular com Q-table persistível;
+- treinamento e avaliação reproduzíveis por seed;
 - telemetria e métricas;
 - visualização Pygame com dashboard e áudio opcional;
 - pipeline de dados do Check-in 2;
 - integração da rede viária do OpenStreetMap via Overpass API;
 - testes automatizados e workflow de CI.
 
-> O controlador adaptativo atual é baseado em regras. O controlador com IA/RL ainda é uma etapa posterior do projeto.
+> O controlador adaptativo continua sendo uma heurística. O Q-Learning é a primeira implementação de IA/aprendizado do projeto. O modelo treinado é gerado localmente e só deve ser avaliado após o treinamento.
 
 ## Arquitetura
 
@@ -30,7 +33,7 @@ Comparar controladores semafóricos **fixos**, **adaptativos** e, em fases poste
 src/sergipe_traffic_ai/
 ├── simulation/      # relógio e execução do ambiente
 ├── traffic/         # entidades do domínio
-├── controllers/     # fixed, adaptive e futuro RL
+├── controllers/     # fixed, adaptive, ambiente RL e Q-Learning
 ├── metrics/         # coleta e consolidação de indicadores
 └── scenarios/       # cenários experimentais
 ```
@@ -58,12 +61,46 @@ Controles principais:
 - `R`: reset;
 - `1`: baseline fixo;
 - `2`: adaptativo por regras;
+- `3`: Q-Learning treinado;
 - `D`: tela de Dados & Pré-processamento do Check-in 2;
 - `G`: mostra/oculta o painel contextual do OpenStreetMap;
 - `M`: liga/desliga áudio;
 - `↑ / ↓`: velocidade da simulação.
 
 Quando `experiments/output/checkin2/osm/osm_road_network.geojson` existe, o Pygame exibe um **painel contextual OSM** com a rede viária real do entorno. A simulação operacional permanece no cruzamento esquemático ampliado, preservando legibilidade de veículos, faixas, semáforos e filas.
+
+## Q-Learning
+
+Treine a primeira política inteligente:
+
+```powershell
+python experiments/train_q_learning.py
+```
+
+Para um teste mais curto:
+
+```powershell
+python experiments/train_q_learning.py --episodes 20 --duration 300
+```
+
+O treinamento gera:
+
+```text
+models/q_learning_aracaju.json
+experiments/output/q_learning/training_history.csv
+```
+
+Depois avalie a política sem exploração:
+
+```powershell
+python experiments/evaluate_q_learning.py
+```
+
+Com o modelo gerado, a tecla `3` no Pygame ativa o controlador Q-Learning.
+
+O agente observa filas discretizadas, fase e tempo na fase; suas ações são apenas **manter** ou **solicitar troca**. A sequência verde → amarelo → todos-vermelhos → verde conflitante continua sob uma máquina determinística de segurança.
+
+Consulte `docs/Q_LEARNING.md` para estado, ações, recompensa, equação de Bellman e protocolo de avaliação.
 
 ## Check-in 2 — dados e pré-processamento
 
@@ -116,8 +153,8 @@ pytest
 3. **v0.3** — visualização 2D;
 4. **v0.4** — experimentos automatizados;
 5. **v0.5** — controlador adaptativo avançado;
-6. **v0.6** — ambiente de Reinforcement Learning;
-7. **v0.7** — Q-Learning/DQN/PPO;
+6. **v0.6** — ambiente de Reinforcement Learning causal e seguro;
+7. **v0.7** — Q-Learning tabular e avaliação experimental;
 8. **v0.8** — múltiplos cruzamentos e eventos;
 9. **v0.9** — dashboard e IA generativa;
 10. **v1.0** — avaliação final e demonstração acadêmica.

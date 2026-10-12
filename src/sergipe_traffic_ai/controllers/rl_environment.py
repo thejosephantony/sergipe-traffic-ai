@@ -1,70 +1,156 @@
-"""
-Ambiente de Aprendizado por Reforço para o Controle Semafórico
-Sergipe Traffic AI - Seções 12, 13 e 27
-"""
+from __future__ import annotations
 
-from typing import Dict, Any, Tuple
-from sergipe_traffic_ai.traffic.demand import TrafficDemandSimulator
+from typing import Any
+
+from sergipe_traffic_ai.controllers.q_learning import (
+    ACTION_REQUEST_SWITCH,
+    QLearningStateEncoder,
+    SafeSignalPhaseMachine,
+    State,
+)
+from sergipe_traffic_ai.traffic.demand import (
+    AUGUSTO_AXIS,
+    BARAO_AXIS,
+    TrafficDemandSimulator,
+)
+
 
 class TrafficRLEnvironment:
-    """
-    Expõe o simulador como um ambiente de Aprendizado por Reforço,
-    definindo estado, ações, recompensas e restrições de segurança (Seção 12 e 27).
-    """
-    def __init__(self, scenario_config: Dict[str, Any]):
+    """Ambiente causal e seguro para treinamento de Q-Learning tabular."""
+
+    def __init__(
+        self,
+        scenario_config: dict[str, Any],
+        decision_interval_s: float | None = None,
+    ) -> None:
+        self.scenario_config = scenario_config
+        q_cfg = scenario_config.get("scenario", {}).get("q_learning", {})
+
+        self.decision_interval_s = float(
+            decision_interval_s
+            if decision_interval_s is not None
+            else q_cfg.get("decision_interval_s", 1.0)
+        )
+        self.queue_weight = float(
+            q_cfg.get("reward_queue_weight", 1.0)
+        )
+        self.wait_weight = float(
+            q_cfg.get("reward_wait_weight", 0.05)
+        )
+        self.throughput_weight = float(
+            q_cfg.get("reward_throughput_weight", 0.5)
+        )
+        self.switch_penalty = float(
+            q_cfg.get("switch_penalty", 0.1)
+        )
+
         self.simulator = TrafficDemandSimulator(scenario_config)
-        self.current_phase = "BARAO_GREEN"
-        self.time_in_phase = 0.0
-        self.min_green_s = 10.0  # Restrição de segurança lógica (Seção 9.3 e 13.4)
+        self.phase_machine = SafeSignalPhaseMachine()
+        self.encoder = QLearningStateEncoder()
+        self.phase_machine.reset(scenario_config)
 
-    def reset(self) -> Dict[str, float]:
-        """Reseta o ambiente para o início de um novo episódio (Seção 27.2)."""
+    def reset(self, seed: int | None = None) -> State:
+        if seed is not None:
+            self.simulator.seed = int(seed)
+
         self.simulator.reset()
-        self.current_phase = "BARAO_GREEN"
-        self.time_in_phase = 0.0
-        return self._get_observation()
+        self.phase_machine.reset(self.scenario_config)
+        return self.state()
 
-    def _get_observation(self) -> Dict[str, float]:
-        """Constrói o vetor de estado observável pelo agente (Seção 12.2)."""
-        queue_barao = len([v for v in self.simulator.active_vehicles if "Barão" in v.origin_axis])
-        queue_augusto = len([v for v in self.simulator.active_vehicles if "Augusto" in v.origin_axis])
-        
+    def observation(self) -> dict[str, float]:
         return {
-            "queue_barao": float(queue_barao),
-            "queue_augusto": float(queue_augusto),
-            "phase_encoded": 1.0 if self.current_phase == "BARAO_GREEN" else 0.0,
-            "time_in_phase": self.time_in_phase
+            "queue_barao": float(
+                self.simulator.queue_length(BARAO_AXIS)
+            ),
+            "queue_augusto": float(
+                self.simulator.queue_length(AUGUSTO_AXIS)
+            ),
+            "wait_barao": self.simulator.average_wait(BARAO_AXIS),
+            "wait_augusto": self.simulator.average_wait(AUGUSTO_AXIS),
+            "time_step_s": float(self.simulator.time_step_s),
         }
 
-    def step(self, action: int) -> Tuple[Dict[str, float], float, bool, Dict[str, Any]]:
-        """
-        Executa uma ação no ambiente:
-        Ação 0: Manter a fase atual.
-        Ação 1: Solicitar troca de fase (sujeita a máscara de segurança).
-        """
-        # Geração de demanda do passo
-        self.simulator.generate_vehicles_step()
-        self.time_in_phase = round(self.time_in_phase + self.simulator.time_step_s, 2)
+    def state(self) -> State:
+        return self.encoder.encode(
+            self.observation(),
+            self.phase_machine,
+        )
 
-        # Máscara de ações / Restrição de segurança lógica (Seção 13.4 e 27.2)
-        if action == 1 and self.time_in_phase >= self.min_green_s:
-            # Realiza a transição segura de fase
-            self.current_phase = "AUGUSTO_GREEN" if self.current_phase == "BARAO_GREEN" else "BARAO_GREEN"
-            self.time_in_phase = 0.0
+    def step(
+        self,
+        action: int,
+    ) -> tuple[State, float, bool, dict[str, Any]]:
+        if action not in (0, 1):
+            raise ValueError(f"Ação inválida: {action}")
 
-        # Cálculo de métricas e penalidades para a função de recompensa (Seção 12.4)
-        queue_barao = len([v for v in self.simulator.active_vehicles if "Barão" in v.origin_axis])
-        queue_augusto = len([v for v in self.simulator.active_vehicles if "Augusto" in v.origin_axis])
-        total_queue = queue_barao + queue_augusto
+        time_step_s = float(self.simulator.time_step_s)
+        substeps = max(
+            1,
+            round(self.decision_interval_s / time_step_s),
+        )
 
-        # Recompensa negativa baseada no tamanho total da fila (penaliza atrasos)
-        reward = -1.0 * float(total_queue)
+        completed_before = self.simulator.completed_vehicles_count
+        transition_started = False
+        is_running = True
 
-        # Avança o tempo do simulador
-        is_running = self.simulator.step()
-        done = not is_running
+        for substep in range(substeps):
+            request_switch = (
+                action == ACTION_REQUEST_SWITCH
+                and substep == 0
+            )
+            phase, started = self.phase_machine.tick(
+                time_step_s,
+                request_switch=request_switch,
+            )
+            transition_started = transition_started or started
 
-        obs = self._get_observation()
-        info = {"completed_vehicles": self.simulator.completed_vehicles_count}
+            self.simulator.generate_vehicles_step()
+            is_running = self.simulator.step(phase)
+            if not is_running:
+                break
 
-        return obs, reward, done, info
+        observation = self.observation()
+        queue_total = (
+            observation["queue_barao"]
+            + observation["queue_augusto"]
+        )
+        wait_total = (
+            observation["wait_barao"]
+            + observation["wait_augusto"]
+        )
+        completed_delta = (
+            self.simulator.completed_vehicles_count
+            - completed_before
+        )
+
+        reward = (
+            -self.queue_weight * queue_total
+            -self.wait_weight * wait_total
+            +self.throughput_weight * completed_delta
+        )
+        if transition_started:
+            reward -= self.switch_penalty
+
+        done = (
+            not is_running
+            or self.simulator.current_time
+            >= self.simulator.duration_s
+        )
+        next_state = self.state()
+
+        info = {
+            "phase": self.phase_machine.current_phase,
+            "time_in_phase": self.phase_machine.time_in_phase,
+            "switch_requested": action == ACTION_REQUEST_SWITCH,
+            "switch_accepted": transition_started,
+            "completed_delta": completed_delta,
+            "completed_vehicles": (
+                self.simulator.completed_vehicles_count
+            ),
+            "average_completed_wait_s": (
+                self.simulator.average_completed_wait()
+            ),
+            "queue_total": queue_total,
+        }
+
+        return next_state, float(reward), done, info

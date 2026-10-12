@@ -47,3 +47,17 @@ scenario:
     yellow_s: 3
     all_red_s: 1
     cycle_duration_s: 78
+
+  q_learning:
+    model_path: "models/q_learning_aracaju.json"
+    decision_interval_s: 1.0
+    alpha: 0.15
+    gamma: 0.95
+    epsilon_start: 1.0
+    epsilon_min: 0.05
+    epsilon_decay: 0.97
+    reward_queue_weight: 1.0
+    reward_wait_weight: 0.05
+    reward_throughput_weight: 0.5
+    switch_penalty: 0.1
+    note: "Configuração inicial do agente Q-Learning tabular; os hiperparâmetros devem ser avaliados experimentalmente."

@@ -75,6 +75,7 @@ class SafeSignalPhaseMachine:
         self,
         time_step_s: float,
         request_switch: bool = False,
+        conflict_zone_occupied: bool = False,
     ) -> tuple[str, bool]:
         """Avança a máquina e informa se uma transição verde->amarelo começou."""
         dt = max(0.0, float(time_step_s))
@@ -109,12 +110,14 @@ class SafeSignalPhaseMachine:
         elif (
             self.current_phase == ALL_RED_TO_AUGUSTO
             and self.time_in_phase >= self.all_red_s
+            and not conflict_zone_occupied
         ):
             self.current_phase = AUGUSTO_GREEN
             self.time_in_phase = 0.0
         elif (
             self.current_phase == ALL_RED_TO_BARAO
             and self.time_in_phase >= self.all_red_s
+            and not conflict_zone_occupied
         ):
             self.current_phase = BARAO_GREEN
             self.time_in_phase = 0.0
@@ -406,6 +409,9 @@ class QLearningTrafficController:
         self.current_phase, _ = self.phase_machine.tick(
             time_step_s,
             request_switch=request_switch,
+            conflict_zone_occupied=bool(
+                observation.get("conflict_zone_occupied", False)
+            ),
         )
 
         if (

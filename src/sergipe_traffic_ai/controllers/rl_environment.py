@@ -68,6 +68,7 @@ class TrafficRLEnvironment:
             "wait_barao": self.simulator.average_wait(BARAO_AXIS),
             "wait_augusto": self.simulator.average_wait(AUGUSTO_AXIS),
             "time_step_s": float(self.simulator.time_step_s),
+            "conflict_zone_occupied": self.simulator.conflict_zone_occupied(),
         }
 
     def state(self) -> State:
@@ -101,6 +102,7 @@ class TrafficRLEnvironment:
             phase, started = self.phase_machine.tick(
                 time_step_s,
                 request_switch=request_switch,
+                conflict_zone_occupied=self.simulator.conflict_zone_occupied(),
             )
             transition_started = transition_started or started
 

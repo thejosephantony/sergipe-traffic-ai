@@ -133,6 +133,7 @@ class TrafficDemandSimulator:
         self.vehicle_counter = 0
         self.active_vehicles: List[Vehicle] = []
         self.completed_vehicles_count = 0
+        self.completed_wait_time_total_s = 0.0
         self.completed_vehicles_by_type = {
             vehicle_type: 0 for vehicle_type in VEHICLE_PROFILES
         }
@@ -186,6 +187,7 @@ class TrafficDemandSimulator:
         self.vehicle_counter = 0
         self.active_vehicles.clear()
         self.completed_vehicles_count = 0
+        self.completed_wait_time_total_s = 0.0
         self.completed_vehicles_by_type = {
             vehicle_type: 0 for vehicle_type in VEHICLE_PROFILES
         }
@@ -402,6 +404,7 @@ class TrafficDemandSimulator:
             if vehicle.position >= self.exit_position_m - 1e-9:
                 vehicle.state = "COMPLETED"
                 self.completed_vehicles_count += 1
+                self.completed_wait_time_total_s += vehicle.wait_time_s
                 self.completed_vehicles_by_type[
                     vehicle.vehicle_type
                 ] += 1
@@ -449,6 +452,14 @@ class TrafficDemandSimulator:
         return (
             sum(v.wait_time_s for v in vehicles)
             / len(vehicles)
+        )
+
+    def average_completed_wait(self) -> float:
+        if self.completed_vehicles_count == 0:
+            return 0.0
+        return (
+            self.completed_wait_time_total_s
+            / self.completed_vehicles_count
         )
 
     def active_count_by_type(self, vehicle_type: str) -> int:

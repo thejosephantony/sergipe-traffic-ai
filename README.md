@@ -1,183 +1,215 @@
 # Sergipe Traffic AI 🚦
 
-Laboratório virtual de Inteligência Artificial para simulação de trânsito e avaliação de estratégias de controle semafórico em cenários urbanos inspirados em Sergipe.
+**Laboratório virtual de simulação de trânsito e aprendizado por reforço**, inspirado em um cruzamento urbano de Aracaju, Sergipe.
 
-## Objetivo
+O objetivo do projeto é estudar e comparar estratégias de controle semafórico por meio de uma simulação reproduzível, utilizando indicadores de filas, tempo de espera e veículos concluídos.
 
-Comparar controladores semafóricos **fixos**, **adaptativos por regras** e **Q-Learning**, medindo impacto sobre tempo de espera, tamanho de filas, throughput e fluidez do tráfego.
+> **Fase atual: v0.7 do roadmap — Q-Learning implementado; avaliação comparativa em andamento.** Este número representa uma etapa do roadmap acadêmico, não a versão do pacote Python (atualmente `0.1.0`).
 
-## Estado atual
+## Estado do projeto
 
-**v0.3 — protótipo visual funcional / preparação experimental**
+| Componente | Situação |
+| --- | --- |
+| Simulador de tráfego bidirecional (carros, motos e ônibus) | Implementado |
+| Controlador semafórico de tempo fixo (baseline) | Implementado |
+| Controlador adaptativo **por regras** | Implementado — não é aprendizado de máquina |
+| Ambiente de Reinforcement Learning | Implementado em versão inicial |
+| Agente de **Q-Learning tabular** | Implementado e treinável |
+| Treinamento, Q-table em JSON e avaliação sem exploração | Implementados |
+| Comparação científica entre fixo × adaptativo × Q-Learning | **Pendente de consolidação** |
+| Visualização Pygame, métricas e painel OSM | Implementados |
+| Pedestres, ciclistas, ciclovia e veículos de emergência | **Planejados para v0.8; ainda não implementados** |
 
-- simulador discreto reproduzível por seed;
-- tráfego bidirecional com carros, motos e ônibus;
-- parada antes da faixa de pedestres;
-- fases verde, amarelo e todos-vermelhos;
-- intertravamento de limpeza: nenhum verde conflitante é liberado enquanto
-  houver veículos após a linha de retenção;
-- sprites proporcionais ao espaçamento físico, sem sobreposição visual em uma faixa;
-- controlador de tempo fixo (baseline);
-- controlador adaptativo heurístico;
-- ambiente causal de Reinforcement Learning;
-- agente Q-Learning tabular com Q-table persistível;
-- treinamento e avaliação reproduzíveis por seed;
-- telemetria e métricas;
-- visualização Pygame com dashboard e áudio opcional;
-- pipeline de dados do Check-in 2;
-- integração da rede viária do OpenStreetMap via Overpass API;
-- testes automatizados e workflow de CI.
+**Importante:** ter um agente que aprende não significa que ele já superou o baseline. Qualquer conclusão de desempenho exige experimentos controlados com múltiplas seeds e métricas comparáveis. A demanda veicular atual é **sintética**, e o cenário ainda não foi calibrado com contagens de tráfego reais.
 
-> O controlador adaptativo continua sendo uma heurística. O Q-Learning é a primeira implementação de IA/aprendizado do projeto. O modelo treinado é gerado localmente e só deve ser avaliado após o treinamento.
+## Cenário e dados
 
-## Arquitetura
+O cenário piloto é inspirado nos eixos **Avenida Augusto Franco** e **Avenida Desembargador Maynard / Barão de Maruim**, em Aracaju/SE. A referência geográfica é aproximada; o protótipo não é uma reprodução topográfica ou geométrica exata da interseção.
 
-```text
-src/sergipe_traffic_ai/
-├── simulation/      # relógio e execução do ambiente
-├── traffic/         # entidades do domínio
-├── controllers/     # fixed, adaptive, ambiente RL e Q-Learning
-├── metrics/         # coleta e consolidação de indicadores
-└── scenarios/       # cenários experimentais
-```
+- **IBGE:** contexto territorial de Sergipe e Aracaju, obtido opcionalmente no pipeline.
+- **OpenStreetMap / Overpass API:** geometria e atributos da rede viária do entorno, quando disponíveis.
+- **Demanda sintética:** geração de veículos, composição da frota e divisão por sentido, com seeds reproduzíveis.
+
+O Pygame mantém um **cruzamento esquemático ampliado** para mostrar faixas, filas e semáforos. Quando o GeoJSON do OSM está disponível, ele aparece em um **painel cartográfico contextual**; os veículos da simulação não percorrem necessariamente as geometrias reais do OSM.
 
 ## Instalação
 
-Requer Python 3.11+.
+Requisitos: **Python 3.11 ou superior**, Git e PowerShell no Windows.
 
-```bash
+Na raiz do repositório, no **Windows PowerShell**:
+
+```powershell
 python -m venv .venv
-source .venv/bin/activate      # Linux/macOS
-# .venv\\Scripts\\activate     # Windows
-pip install -e .[dev]
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+python -m pytest
 ```
 
-## Executar o protótipo visual
+Em Linux/macOS, ative o ambiente com `source .venv/bin/activate` antes da instalação.
+
+> Caso o comando `pytest` não seja reconhecido ou apareça `ModuleNotFoundError: No module named 'sergipe_traffic_ai'`, ative o ambiente virtual e execute a instalação editável acima. Prefira `python -m pytest`.
+
+## Executar a simulação visual
 
 ```powershell
 python -m sergipe_traffic_ai.visual.app
 ```
 
-Controles principais:
+| Tecla | Ação |
+| --- | --- |
+| `1` | Controlador fixo (baseline) |
+| `2` | Controlador adaptativo por regras |
+| `3` | Controlador Q-Learning **com modelo treinado** |
+| `ESPAÇO` | Pausar/continuar |
+| `R` | Reiniciar a simulação |
+| `D` | Abrir/fechar a tela de dados do Check-in 2 |
+| `G` | Mostrar/ocultar o painel contextual OSM |
+| `M` | Ligar/desligar o áudio |
+| `↑` / `↓` | Aumentar/reduzir a velocidade |
 
-- `ESPAÇO`: pausa;
-- `R`: reset;
-- `1`: baseline fixo;
-- `2`: adaptativo por regras;
-- `3`: Q-Learning treinado;
-- `D`: tela de Dados & Pré-processamento do Check-in 2;
-- `G`: mostra/oculta o painel contextual do OpenStreetMap;
-- `M`: liga/desliga áudio;
-- `↑ / ↓`: velocidade da simulação.
+**Trocar entre os modos `1`, `2` e `3` reinicia o episódio**, impedindo que um novo controlador assuma uma fase incompatível com a anterior. O modo `3` requer o arquivo `models/q_learning_aracaju.json`, gerado pelo treinamento.
 
-**Segurança visual:** trocar entre os controladores `1`, `2` e `3` agora reinicia o episódio, evitando mudança abrupta entre verdes conflitantes. Durante a troca de fase, o sistema aguarda o esvaziamento conservador da travessia; isso pode estender o período de todos-vermelhos.
+### Regras de circulação e segurança
 
-Quando `experiments/output/checkin2/osm/osm_road_network.geojson` existe, o Pygame exibe um **painel contextual OSM** com a rede viária real do entorno. A simulação operacional permanece no cruzamento esquemático ampliado, preservando legibilidade de veículos, faixas, semáforos e filas.
+O protótipo considera sentidos de circulação independentes, filas por aproximação e distância longitudinal mínima entre veículos. Os sprites foram redimensionados para acompanhar essa escala e reduzir sobreposições **na mesma faixa**.
 
-## Q-Learning
+As mudanças de verde seguem uma sequência determinística:
 
-Treine a primeira política inteligente:
-
-```powershell
-python experiments/train_q_learning.py
+```text
+VERDE → AMARELO → TODOS VERMELHOS → VERDE DO EIXO OPOSTO
 ```
 
-Para um teste mais curto:
+No cenário piloto, o amarelo dura **4 s** e todos-vermelhos dura **no mínimo 2 s**. Se ainda houver veículos que passaram da linha de retenção, o sistema mantém ambos os eixos bloqueados até a saída deles da área simulada. Essa regra vale para os três controladores.
+
+Essas salvaguardas pertencem a um **modelo simplificado**: não substituem um detector físico de colisões, modelagem detalhada de pedestres ou validação de segurança viária real.
+
+## Q-Learning — treinamento e avaliação
+
+O controlador inteligente emprega **Q-Learning tabular**, com:
+
+- **Estado:** categorias de filas dos dois eixos, fase semafórica e tempo na fase;
+- **Ações:** `0 = manter` e `1 = solicitar troca`;
+- **Recompensa:** penalidades para fila e espera, incentivo ao throughput e custo de troca;
+- **Exploração:** política epsilon-greedy durante treinamento;
+- **Segurança:** o agente solicita mudanças, mas não controla diretamente o amarelo ou todos-vermelhos.
+
+**Treinamento rápido para verificar a execução:**
 
 ```powershell
 python experiments/train_q_learning.py --episodes 20 --duration 300
 ```
 
-O treinamento gera:
+**Treinamento padrão** (200 episódios de 600 s simulados, com seeds consecutivas):
+
+```powershell
+python experiments/train_q_learning.py
+```
+
+Arquivos gerados localmente:
 
 ```text
 models/q_learning_aracaju.json
 experiments/output/q_learning/training_history.csv
 ```
 
-Depois avalie a política sem exploração:
+**Avaliação da política aprendida, sem exploração (`epsilon=0`):**
 
 ```powershell
 python experiments/evaluate_q_learning.py
 ```
 
-Com o modelo gerado, a tecla `3` no Pygame ativa o controlador Q-Learning.
+Por padrão, a avaliação utiliza **20 seeds**, começando em 1000, e salva os resultados em `experiments/output/q_learning/evaluation.csv`.
 
-O agente observa filas discretizadas, fase e tempo na fase; suas ações são apenas **manter** ou **solicitar troca**. A sequência verde → amarelo → todos-vermelhos → verde conflitante continua sob uma máquina determinística de segurança.
+**Atenção:** após mudanças na lógica do simulador ou dos tempos semafóricos, execute novamente treinamento e avaliação. Uma Q-table antiga pode ser carregada, mas foi aprendida sob condições anteriores.
 
-Consulte `docs/Q_LEARNING.md` para estado, ações, recompensa, equação de Bellman e protocolo de avaliação.
+O script atual avalia o **Q-Learning isoladamente**. A comparação definitiva **fixo × adaptativo × Q-Learning**, executada sobre as mesmas seeds, durações e cenários, ainda é uma tarefa da v0.7.
 
-## Check-in 2 — dados e pré-processamento
+Metodologia completa: [docs/Q_LEARNING.md](docs/Q_LEARNING.md).
 
-Execute:
+## Pipeline de dados — Check-in 2
+
+Gerar arquivos do cenário e relatório de pré-processamento:
 
 ```powershell
 python -m sergipe_traffic_ai.data_pipeline.checkin2
 ```
 
-Para baixar e pré-processar a rede viária do OpenStreetMap:
+Buscar a rede viária do OSM (requer conexão à internet e disponibilidade da API):
 
 ```powershell
 python -m sergipe_traffic_ai.data_pipeline.checkin2 --fetch-osm
 ```
 
-Para executar IBGE + OSM na mesma demonstração:
+Consultar também as fontes geográficas do IBGE:
 
 ```powershell
 python -m sergipe_traffic_ai.data_pipeline.checkin2 --fetch-geography --fetch-osm
 ```
 
-A integração OSM usa a Overpass API e gera um GeoJSON local com geometria e atributos como nome, tipo de via, sentido, número de faixas e velocidade máxima quando esses campos existem no OSM. Esse GeoJSON também é usado pelo Pygame como contexto cartográfico quando disponível, sem substituir a representação operacional do cruzamento.
+O pipeline salva os resultados em `experiments/output/checkin2/`. O GeoJSON esperado pelo Pygame fica em `experiments/output/checkin2/osm/osm_road_network.geojson`.
 
-O pipeline gera um relatório rastreável em `experiments/output/checkin2/`. A demanda veicular continua sintética nesta etapa; o OSM fornece a rede viária, não contagens de tráfego.
+Os dados de rede viária **não fornecem contagens reais de veículos**; a demanda continua sintética.
 
-Consulte `docs/CHECKIN2.md` para o roteiro completo da apresentação.
+Documentação do Check-in: [docs/CHECKIN2.md](docs/CHECKIN2.md).
 
-Exemplo de saída:
+## Roadmap acadêmico
+
+Os marcos representam a evolução funcional do projeto, não necessariamente releases publicados.
+
+| Fase | Objetivo | Situação |
+| --- | --- | --- |
+| **v0.1** | Núcleo do simulador e baseline | Implementado |
+| **v0.2** | Tráfego bidirecional, veículos e métricas | Protótipo implementado |
+| **v0.3** | Interface Pygame e telemetria | Implementado |
+| **v0.4** | Experimentos automatizados e métricas comparáveis | Parcial; comparativo completo pendente |
+| **v0.5** | Controle adaptativo | Heurística implementada |
+| **v0.6** | Ambiente de Reinforcement Learning | Implementação inicial concluída |
+| **v0.7 (atual)** | Q-Learning, treinamento e validação comparativa | Algoritmo implementado; validação pendente |
+| **v0.8 (próxima)** | Mobilidade multimodal e infraestrutura urbana | Planejada |
+| **v0.9** | Dashboard e experimentos ampliados | Planejada |
+| **v1.0** | Análise final e apresentação acadêmica | Pendente |
+
+### Próxima expansão proposta: v0.8 — Mobilidade multimodal
+
+**Ainda não implementada.** A proposta é evoluir o cenário da Avenida Augusto Franco em etapas:
+
+1. **Infraestrutura:** desenhar calçadas, ciclovia/faixa ciclável e pontos de travessia, mantendo a leitura do cruzamento.
+2. **Ciclistas:** acrescentar agentes com movimento e parada na infraestrutura ciclável.
+3. **Pedestres:** acrescentar espera e travessia controlada por fase semafórica.
+4. **Emergências:** incluir ambulâncias, viaturas e/ou bombeiros com solicitação de prioridade, sempre respeitando transições seguras.
+
+Antes de usar esses agentes para avaliar o Q-Learning, será necessário estender estados, ações/recompensas e métricas do ambiente e treinar novamente o agente.
+
+## Estrutura principal
 
 ```text
-controller=adaptive
-steps=300
-vehicles_generated=...
-vehicles_completed=...
-average_wait=...
-max_queue=...
-throughput=...
+scenarios/                         # Cenário e parâmetros sintéticos
+src/sergipe_traffic_ai/
+├── controllers/
+│   ├── fixed_controller.py        # Baseline de tempo fixo
+│   ├── adaptive_controller.py     # Heurística adaptativa
+│   ├── q_learning.py              # Q-table e lógica de segurança
+│   └── rl_environment.py          # Ambiente RL causal
+├── traffic/demand.py              # Chegadas e dinâmica veicular
+├── training/q_learning.py         # Loop de treinamento
+├── data_pipeline/                 # IBGE, OSM e pré-processamento
+└── visual/                        # Pygame, sprites e painel OSM
+experiments/
+├── train_q_learning.py
+└── evaluate_q_learning.py
+tests/                              # Testes automatizados
+docs/                               # Documentação do projeto
 ```
 
-## Testes
+## Qualidade e limitações
 
-```bash
-pytest
+A CI executa `ruff check src tests` e `pytest -q` em Python 3.11. Para validar localmente:
+
+```powershell
+python -m pytest
+python -m ruff check src tests
 ```
 
-## Roadmap resumido
+O Sergipe Traffic AI é um **ambiente experimental e acadêmico**. A rede do OSM fornece contexto geográfico, não demanda observada. As estratégias ainda precisam de avaliação estatística e calibração antes que qualquer resultado possa ser extrapolado para uma infraestrutura viária real.
 
-1. **v0.1** — núcleo do simulador e baseline;
-2. **v0.2** — múltiplas faixas, rotas e telemetria;
-3. **v0.3** — visualização 2D;
-4. **v0.4** — experimentos automatizados;
-5. **v0.5** — controlador adaptativo avançado;
-6. **v0.6** — ambiente de Reinforcement Learning causal e seguro;
-7. **v0.7** — Q-Learning tabular e avaliação experimental;
-8. **v0.8** — múltiplos cruzamentos e eventos;
-9. **v0.9** — dashboard e IA generativa;
-10. **v1.0** — avaliação final e demonstração acadêmica.
-
-## Métricas principais
-
-- tempo médio de espera;
-- fila média e máxima;
-- throughput;
-- número de paradas;
-- tempo total de viagem;
-- velocidade média;
-- atendimento de prioridades.
-
-## Uso responsável
-
-Este projeto é um **ambiente de pesquisa e simulação**. Resultados obtidos em ambiente virtual não devem ser interpretados como garantia de desempenho ou segurança em infraestrutura viária real.
-
-## Documentação
-
-Consulte [`docs/PROJECT.md`](docs/PROJECT.md) para a especificação inicial e [`docs/ROADMAP.md`](docs/ROADMAP.md) para o plano de desenvolvimento.
+Mais informações: [documentação de Q-Learning](docs/Q_LEARNING.md), [Check-in 2](docs/CHECKIN2.md), [visão do projeto](docs/PROJECT.md) e [roadmap detalhado](docs/ROADMAP.md).

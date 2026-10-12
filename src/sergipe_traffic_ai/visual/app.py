@@ -9,6 +9,7 @@ import pygame
 
 from sergipe_traffic_ai.controllers.adaptive_controller import AdaptiveTrafficController
 from sergipe_traffic_ai.controllers.fixed_controller import FixedTrafficController
+from sergipe_traffic_ai.controllers.q_learning import QLearningTrafficController
 from sergipe_traffic_ai.traffic.demand import (
     AUGUSTO_AXIS,
     AUGUSTO_NORTHBOUND,
@@ -102,6 +103,8 @@ def build_controller(name: str):
         return FixedTrafficController()
     if name == "adaptive":
         return AdaptiveTrafficController()
+    if name == "qlearning":
+        return QLearningTrafficController()
     raise ValueError(f"Controlador desconhecido: {name}")
 
 
@@ -360,8 +363,15 @@ def draw_header(
         MUTED,
     )
 
-    controller_color = ACCENT if controller_name == "adaptive" else BLUE
-    controller_label = "ADAPTATIVO" if controller_name == "adaptive" else "BASELINE FIXO"
+    if controller_name == "qlearning":
+        controller_color = GREEN
+        controller_label = "Q-LEARNING IA"
+    elif controller_name == "adaptive":
+        controller_color = ACCENT
+        controller_label = "ADAPTATIVO"
+    else:
+        controller_color = BLUE
+        controller_label = "BASELINE FIXO"
     badge_x = 715
     first_width = draw_badge(
         screen,
@@ -1507,11 +1517,12 @@ def draw_panel(
     seed = scenario.get("scenario", {}).get("seed", 42)
     draw_text(screen, fonts, scenario_id, (left, 78), "tiny", MUTED)
 
-    controller_label = (
-        "Adaptativo por regras"
-        if controller_name == "adaptive"
-        else "Tempo fixo (baseline)"
-    )
+    if controller_name == "qlearning":
+        controller_label = "Q-Learning treinado (IA)"
+    elif controller_name == "adaptive":
+        controller_label = "Adaptativo por regras"
+    else:
+        controller_label = "Tempo fixo (baseline)"
 
     phase_labels = {
         "BARAO_GREEN": ("Barão/Maynard liberado", GREEN),
@@ -1626,7 +1637,7 @@ def draw_panel(
     draw_text(
         screen,
         fonts,
-        "ESPAÇO Pausa • R Reset • 1/2 Controle • D Dados • G OSM",
+        "ESPAÇO Pausa • R Reset • 1/2/3 Controle • D Dados • G OSM",
         (left + 12, 762),
         "tiny",
         MUTED,
@@ -1656,7 +1667,11 @@ def main() -> None:
         default="scenarios/aracaju_barao_augusto.json",
         help="Arquivo JSON do cenário.",
     )
-    parser.add_argument("--controller", choices=["fixed", "adaptive"], default="fixed")
+    parser.add_argument(
+        "--controller",
+        choices=["fixed", "adaptive", "qlearning"],
+        default="fixed",
+    )
     args = parser.parse_args()
 
     scenario_path = Path(args.scenario)
@@ -1757,6 +1772,16 @@ def main() -> None:
                     controller_name = "adaptive"
                     controller = build_controller(controller_name)
                     controller.reset(scenario)
+                elif event.key == pygame.K_3:
+                    candidate = build_controller("qlearning")
+                    try:
+                        candidate.reset(scenario)
+                    except FileNotFoundError as exc:
+                        print(f"[Q-LEARNING] {exc}")
+                    else:
+                        audio.play_ui()
+                        controller_name = "qlearning"
+                        controller = candidate
                 elif event.key == pygame.K_d:
                     data_overlay = not data_overlay
                     audio.play_ui()

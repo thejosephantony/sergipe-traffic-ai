@@ -57,7 +57,7 @@ class AdaptiveTrafficController:
             self.current_phase = "AUGUSTO_YELLOW"
         self.time_in_current_phase = 0.0
 
-    def _advance_clearance_phase(self) -> None:
+    def _advance_clearance_phase(self, occupied: bool = False) -> None:
         if (
             self.current_phase == "BARAO_YELLOW"
             and self.time_in_current_phase >= self.yellow_duration_s
@@ -73,12 +73,14 @@ class AdaptiveTrafficController:
         elif (
             self.current_phase == "ALL_RED_TO_AUGUSTO"
             and self.time_in_current_phase >= self.all_red_s
+            and not occupied
         ):
             self.current_phase = "AUGUSTO_GREEN"
             self.time_in_current_phase = 0.0
         elif (
             self.current_phase == "ALL_RED_TO_BARAO"
             and self.time_in_current_phase >= self.all_red_s
+            and not occupied
         ):
             self.current_phase = "BARAO_GREEN"
             self.time_in_current_phase = 0.0
@@ -93,7 +95,9 @@ class AdaptiveTrafficController:
             "BARAO_GREEN",
             "AUGUSTO_GREEN",
         }:
-            self._advance_clearance_phase()
+            self._advance_clearance_phase(
+                occupied=bool(observation.get("conflict_zone_occupied", False))
+            )
             return self.current_phase
 
         queue_barao = observation.get("queue_barao", 0)

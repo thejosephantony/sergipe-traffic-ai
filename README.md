@@ -14,6 +14,9 @@ Comparar controladores semafóricos **fixos**, **adaptativos por regras** e **Q-
 - tráfego bidirecional com carros, motos e ônibus;
 - parada antes da faixa de pedestres;
 - fases verde, amarelo e todos-vermelhos;
+- intertravamento de limpeza: nenhum verde conflitante é liberado enquanto
+  houver veículos após a linha de retenção;
+- sprites proporcionais ao espaçamento físico, sem sobreposição visual em uma faixa;
 - controlador de tempo fixo (baseline);
 - controlador adaptativo heurístico;
 - ambiente causal de Reinforcement Learning;
@@ -66,6 +69,8 @@ Controles principais:
 - `G`: mostra/oculta o painel contextual do OpenStreetMap;
 - `M`: liga/desliga áudio;
 - `↑ / ↓`: velocidade da simulação.
+
+**Segurança visual:** trocar entre os controladores `1`, `2` e `3` agora reinicia o episódio, evitando mudança abrupta entre verdes conflitantes. Durante a troca de fase, o sistema aguarda o esvaziamento conservador da travessia; isso pode estender o período de todos-vermelhos.
 
 Quando `experiments/output/checkin2/osm/osm_road_network.geojson` existe, o Pygame exibe um **painel contextual OSM** com a rede viária real do entorno. A simulação operacional permanece no cruzamento esquemático ampliado, preservando legibilidade de veículos, faixas, semáforos e filas.
 

@@ -37,9 +37,9 @@
       "type": "fixed",
       "min_green_s": 15,
       "max_green_s": 60,
-      "yellow_s": 3,
-      "all_red_s": 1,
-      "cycle_duration_s": 78
+      "yellow_s": 4,
+      "all_red_s": 2,
+      "cycle_duration_s": 82
     },
     "road_network": {
       "source": "OpenStreetMap",

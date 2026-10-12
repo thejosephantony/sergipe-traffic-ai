@@ -418,6 +418,18 @@ class TrafficDemandSimulator:
         )
         return self.current_time < self.duration_s
 
+    def conflict_zone_occupied(self) -> bool:
+        """Conservador: via só é liberada após todos cruzarem a saída.
+
+        Veículo com frente além da linha de retenção já está comprometido
+        com a travessia. Ao chegar a +95 m ele sai da simulação; essa
+        distância também permite a liberação da traseira do ônibus.
+        """
+        return any(
+            vehicle.position > self.stop_line_position_m
+            for vehicle in self.active_vehicles
+        )
+
     def queue_length(
         self,
         axis_name: str,

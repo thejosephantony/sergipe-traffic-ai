@@ -69,6 +69,14 @@ VERDE
 
 Também são respeitados os tempos mínimo e máximo de verde configurados no cenário.
 
+**Intertravamento físico:** após o amarelo e o período mínimo de todos-vermelhos,
+a máquina mantém ambos os eixos bloqueados enquanto existirem veículos que
+já passaram da linha de retenção. Isso vale para o baseline fixo, o adaptativo
+e o Q-Learning. O critério atual é conservador: libera só quando esses veículos
+saem da área simulada. O cenário piloto usa 4 s de amarelo e 2 s de
+todos-vermelhos como valores mínimos iniciais, sujeitos a validação.
+
+
 ## Recompensa
 
 A função inicial de recompensa considera:
@@ -167,3 +175,18 @@ Se a tecla `3` for pressionada sem um modelo treinado, o controlador atual é ma
 Treinar uma Q-table não basta para afirmar que a IA é melhor.
 
 A conclusão deve vir de comparação com os mesmos cenários e seeds entre os controladores. Resultados devem ser reportados com várias execuções, e não a partir de uma única seed favorável.
+
+## Atualização do modelo após esta correção
+
+Mudanças na dinâmica de segurança alteram as trajetórias dos episódios e a
+recompensa observada. **Reexecute o treinamento e a avaliação** antes de
+apresentar resultados da nova versão. A Q-table antiga ainda pode ser
+carregada, mas foi aprendida sob as regras anteriores.
+
+```powershell
+python experiments/train_q_learning.py
+python experiments/evaluate_q_learning.py
+```
+
+Essas restrições são apropriadas para este protótipo simplificado e **não
+representam certificação de segurança viária em ambiente real**.

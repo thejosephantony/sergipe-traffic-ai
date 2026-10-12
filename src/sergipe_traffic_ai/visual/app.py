@@ -20,6 +20,11 @@ from sergipe_traffic_ai.traffic.demand import (
     TrafficDemandSimulator,
 )
 from sergipe_traffic_ai.visual.audio import AudioManager
+from sergipe_traffic_ai.visual.vehicle_style import (
+    VEHICLE_SCALE_PX_PER_M,
+    front_to_center,
+    sprite_dimensions,
+)
 from sergipe_traffic_ai.visual.osm_map import (
     build_osm_map_context,
     vehicle_pose_on_osm,
@@ -115,55 +120,28 @@ def axis_observation(simulator: TrafficDemandSimulator) -> dict:
         "wait_barao": simulator.average_wait(BARAO_AXIS),
         "wait_augusto": simulator.average_wait(AUGUSTO_AXIS),
         "time_step_s": simulator.time_step_s,
+        "conflict_zone_occupied": simulator.conflict_zone_occupied(),
     }
 
 
 def world_to_screen(vehicle) -> tuple[int, int, str]:
-    """
-    Converte a coordenada longitudinal em posição de tela.
-
-    vehicle.position representa o para-choque dianteiro.
-    Em position == 0, o veículo encosta na linha de retenção e
-    permanece completamente antes da faixa de pedestres.
-    """
-    scale = 3.0
-    visual_half_length_px = {
-        "car": 20.0,
-        "motorcycle": 13.0,
-        "bus": 31.0,
-    }[vehicle.vehicle_type]
-
+    """Converte a frente física do veículo em um sprite na mesma escala."""
+    scale = VEHICLE_SCALE_PX_PER_M
     if vehicle.movement == BARAO_EASTBOUND:
         front_x = 365 + vehicle.position * scale
-        return (
-            int(front_x - visual_half_length_px),
-            470,
-            "east",
-        )
+        return (round(front_to_center(front_x, "east", vehicle.vehicle_type)), 470, "east")
 
     if vehicle.movement == BARAO_WESTBOUND:
         front_x = 665 - vehicle.position * scale
-        return (
-            int(front_x + visual_half_length_px),
-            390,
-            "west",
-        )
+        return (round(front_to_center(front_x, "west", vehicle.vehicle_type)), 390, "west")
 
     if vehicle.movement == AUGUSTO_NORTHBOUND:
         front_y = 585 - vehicle.position * scale
-        return (
-            550,
-            int(front_y + visual_half_length_px),
-            "north",
-        )
+        return (550, round(front_to_center(front_y, "north", vehicle.vehicle_type)), "north")
 
     if vehicle.movement == AUGUSTO_SOUTHBOUND:
         front_y = 295 + vehicle.position * scale
-        return (
-            460,
-            int(front_y - visual_half_length_px),
-            "south",
-        )
+        return (460, round(front_to_center(front_y, "south", vehicle.vehicle_type)), "south")
 
     raise ValueError(f"Movimento visual desconhecido: {vehicle.movement}")
 
@@ -1334,77 +1312,109 @@ def draw_vehicle(
     queued: bool,
     heading: str,
 ) -> None:
+    """Desenha sprites proporcionais, com luzes, vidro e destaque da fila."""
+    length_px, width_px = sprite_dimensions(vehicle_type)
+    body_length = length_px if horizontal else width_px
+    body_width = width_px if horizontal else length_px
+    body = pygame.Rect(
+        round(x - body_length / 2),
+        round(y - body_width / 2),
+        body_length,
+        body_width,
+    )
+
+    color = {
+        "car": VEHICLE_CAR,
+        "motorcycle": VEHICLE_MOTORCYCLE,
+        "bus": VEHICLE_BUS,
+    }[vehicle_type]
+    outline_radius = 4 if vehicle_type != "motorcycle" else 3
+
+    pygame.draw.rect(
+        screen,
+        (8, 15, 22),
+        body.move(1, 2),
+        border_radius=outline_radius,
+    )
+    pygame.draw.rect(
+        screen,
+        color,
+        body,
+        border_radius=outline_radius,
+    )
+
+    # Para ônibus, faixas de janelas; para carro, vidro central.
     if vehicle_type == "bus":
-        color = VEHICLE_BUS
+        for fraction in (0.30, 0.53, 0.76):
+            if horizontal:
+                window_rect = pygame.Rect(
+                    body.x + round(length_px * fraction) - 3,
+                    body.y + 3,
+                    6,
+                    max(3, width_px - 6),
+                )
+            else:
+                window_rect = pygame.Rect(
+                    body.x + 3,
+                    body.y + round(length_px * fraction) - 3,
+                    max(3, width_px - 6),
+                    6,
+                )
+            pygame.draw.rect(
+                screen,
+                (181, 219, 234),
+                window_rect,
+                border_radius=2,
+            )
+    elif vehicle_type == "car":
         if horizontal:
-            body = pygame.Rect(x - 31, y - 12, 62, 24)
-            windows = [
-                pygame.Rect(x - 20, y - 8, 12, 10),
-                pygame.Rect(x - 4, y - 8, 12, 10),
-                pygame.Rect(x + 12, y - 8, 12, 10),
-            ]
-            wheels = [(x - 20, y + 12), (x + 20, y + 12)]
+            glass = pygame.Rect(
+                body.centerx - 2,
+                body.y + 3,
+                6,
+                max(3, width_px - 6),
+            )
         else:
-            body = pygame.Rect(x - 12, y - 31, 24, 62)
-            windows = [
-                pygame.Rect(x - 8, y - 20, 10, 12),
-                pygame.Rect(x - 8, y - 4, 10, 12),
-                pygame.Rect(x - 8, y + 12, 10, 12),
-            ]
-            wheels = [(x + 12, y - 20), (x + 12, y + 20)]
-
-        pygame.draw.rect(screen, (8, 14, 19), body.move(2, 3), border_radius=6)
-        pygame.draw.rect(screen, color, body, border_radius=6)
-        for window in windows:
-            pygame.draw.rect(screen, (177, 213, 229), window, border_radius=2)
-        for wheel in wheels:
-            pygame.draw.circle(screen, (20, 24, 28), wheel, 4)
-
-    elif vehicle_type == "motorcycle":
-        color = VEHICLE_MOTORCYCLE
-        if horizontal:
-            body = pygame.Rect(x - 13, y - 5, 26, 10)
-            pygame.draw.circle(screen, (18, 22, 26), (x - 9, y + 6), 4)
-            pygame.draw.circle(screen, (18, 22, 26), (x + 9, y + 6), 4)
-            pygame.draw.circle(screen, color, (x, y - 3), 5)
-            pygame.draw.line(screen, color, (x - 7, y), (x + 8, y), 4)
-        else:
-            body = pygame.Rect(x - 5, y - 13, 10, 26)
-            pygame.draw.circle(screen, (18, 22, 26), (x + 6, y - 9), 4)
-            pygame.draw.circle(screen, (18, 22, 26), (x + 6, y + 9), 4)
-            pygame.draw.circle(screen, color, (x - 3, y), 5)
-            pygame.draw.line(screen, color, (x, y - 7), (x, y + 8), 4)
-        pygame.draw.rect(screen, color, body, border_radius=4)
-
+            glass = pygame.Rect(
+                body.x + 3,
+                body.centery - 2,
+                max(3, width_px - 6),
+                6,
+            )
+        pygame.draw.rect(
+            screen,
+            (193, 226, 239),
+            glass,
+            border_radius=2,
+        )
     else:
-        color = VEHICLE_CAR
-        if horizontal:
-            body = pygame.Rect(x - 20, y - 10, 40, 20)
-            window = pygame.Rect(x - 5, y - 7, 13, 14)
-            wheels = [(x - 13, y + 10), (x + 13, y + 10)]
-        else:
-            body = pygame.Rect(x - 10, y - 20, 20, 40)
-            window = pygame.Rect(x - 7, y - 5, 14, 13)
-            wheels = [(x + 10, y - 13), (x + 10, y + 13)]
+        pygame.draw.circle(screen, (17, 31, 38), body.center, 2)
 
-        pygame.draw.rect(screen, (8, 14, 19), body.move(2, 3), border_radius=5)
-        pygame.draw.rect(screen, color, body, border_radius=5)
-        pygame.draw.rect(screen, (177, 213, 229), window, border_radius=3)
-        for wheel in wheels:
-            pygame.draw.circle(screen, (20, 24, 28), wheel, 3)
-
-    # Indicador sutil da dianteira do veículo
+    # Farol branco na frente e lanterna vermelha na traseira.
     if heading == "east":
-        pygame.draw.circle(screen, WHITE, (body.right - 3, body.centery), 2)
+        front = (body.right - 2, body.centery)
+        rear = (body.left + 2, body.centery)
     elif heading == "west":
-        pygame.draw.circle(screen, WHITE, (body.left + 3, body.centery), 2)
+        front = (body.left + 2, body.centery)
+        rear = (body.right - 2, body.centery)
     elif heading == "north":
-        pygame.draw.circle(screen, WHITE, (body.centerx, body.top + 3), 2)
+        front = (body.centerx, body.top + 2)
+        rear = (body.centerx, body.bottom - 2)
     else:
-        pygame.draw.circle(screen, WHITE, (body.centerx, body.bottom - 3), 2)
+        front = (body.centerx, body.bottom - 2)
+        rear = (body.centerx, body.top + 2)
+
+    pygame.draw.circle(screen, WHITE, front, 2)
+    pygame.draw.circle(screen, (245, 93, 88), rear, 2)
 
     if queued:
-        pygame.draw.rect(screen, WHITE, body, 2, border_radius=5)
+        pygame.draw.rect(
+            screen,
+            (235, 245, 249),
+            body,
+            1,
+            border_radius=outline_radius,
+        )
 
 
 def draw_vehicles(
@@ -1537,6 +1547,13 @@ def draw_panel(
         ("Fase de segurança", MUTED),
     )
 
+    if (
+        phase.startswith("ALL_RED")
+        and simulator.conflict_zone_occupied()
+    ):
+        phase_label = "TODOS VERMELHOS • aguardando saída dos veículos"
+        phase_color = YELLOW
+
     draw_elevated_rect(
         screen,
         pygame.Rect(left, 107, width, 76),
@@ -1645,7 +1662,7 @@ def draw_panel(
     draw_text(
         screen,
         fonts,
-        f"M Áudio • ↑↓ Velocidade • {state}",
+        f"Troca de modo reinicia • M Áudio • ↑↓ {state}",
         (left + 12, 784),
         "tiny",
         MUTED,
@@ -1756,32 +1773,39 @@ def main() -> None:
                     audio.play_ui()
                     simulator.reset()
                     controller.reset(scenario)
+                    accumulator = 0.0
                     current_phase = "BARAO_GREEN"
                     barao_history.clear()
                     augusto_history.clear()
                     barao_history.append(0)
                     augusto_history.append(0)
                     last_history_second = -1
-                elif event.key == pygame.K_1:
-                    audio.play_ui()
-                    controller_name = "fixed"
-                    controller = build_controller(controller_name)
-                    controller.reset(scenario)
-                elif event.key == pygame.K_2:
-                    audio.play_ui()
-                    controller_name = "adaptive"
-                    controller = build_controller(controller_name)
-                    controller.reset(scenario)
-                elif event.key == pygame.K_3:
-                    candidate = build_controller("qlearning")
+                elif event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
+                    names = {
+                        pygame.K_1: "fixed",
+                        pygame.K_2: "adaptive",
+                        pygame.K_3: "qlearning",
+                    }
+                    selected_name = names[event.key]
+                    candidate = build_controller(selected_name)
                     try:
                         candidate.reset(scenario)
                     except FileNotFoundError as exc:
                         print(f"[Q-LEARNING] {exc}")
                     else:
+                        # Trocar o controlador em movimento poderia pular direto
+                        # de um verde para o verde conflitante.
                         audio.play_ui()
-                        controller_name = "qlearning"
+                        controller_name = selected_name
                         controller = candidate
+                        simulator.reset()
+                        accumulator = 0.0
+                        current_phase = "BARAO_GREEN"
+                        barao_history.clear()
+                        augusto_history.clear()
+                        barao_history.append(0)
+                        augusto_history.append(0)
+                        last_history_second = -1
                 elif event.key == pygame.K_d:
                     data_overlay = not data_overlay
                     audio.play_ui()

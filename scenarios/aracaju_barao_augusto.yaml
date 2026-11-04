@@ -23,7 +23,7 @@ scenario:
       - "Avenida Desembargador Maynard"
       - "Desembargador Maynard"
     usage_note: "A rede viária é obtida do OSM; a demanda de tráfego continua sintética nesta etapa."
-  seed: 12
+  seed: 42
   duration_s: 1800
   time_step_s: 0.2
   demand:

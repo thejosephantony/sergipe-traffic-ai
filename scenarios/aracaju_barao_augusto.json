@@ -13,7 +13,7 @@
         "note": "Referência aproximada do cenário piloto; não representa levantamento topográfico."
       }
     },
-    "seed": 42,
+    "seed": 12,
     "duration_s": 1800,
     "time_step_s": 0.2,
     "demand": {

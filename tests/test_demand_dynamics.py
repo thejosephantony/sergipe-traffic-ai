@@ -7,6 +7,7 @@ from sergipe_traffic_ai.traffic.demand import (
     BARAO_WESTBOUND,
     TrafficDemandSimulator,
 )
+from sergipe_traffic_ai.traffic.ibge_demand import IBGEDemandModel
 
 
 def scenario(seed=42, duration_s=20.0):
@@ -21,6 +22,40 @@ def scenario(seed=42, duration_s=20.0):
             },
         }
     }
+
+
+def ibge_scenario(start_time="07:00"):
+    config = scenario()
+    config["scenario"]["ibge_demand"] = {
+        "enabled": True,
+        "population_2022": 602757,
+        "density_2022_hab_km2": 3308.89,
+        "reference_population_2022": 602757,
+        "reference_density_2022_hab_km2": 3308.89,
+        "simulation_start_time": start_time,
+    }
+    return config
+
+
+def test_ibge_model_estimates_demographic_factor_and_peak_period():
+    model = IBGEDemandModel(ibge_scenario()["scenario"]["ibge_demand"])
+
+    assert model.demographic_factor == 1.0
+    assert model.period_at(0).name == "pico_manha"
+    assert model.multiplier_at(0) == 1.30
+    assert model.period_at(3 * 60 * 60).name == "entre_picos"
+    assert model.effective_rate(0.8, 0) == 1.04
+
+
+def test_simulator_exposes_ibge_demand_context():
+    sim = TrafficDemandSimulator(ibge_scenario("16:00"))
+
+    context = sim.demand_context()
+
+    assert context["source"] == "IBGE Censo 2022"
+    assert context["peak_period"] == "pico_tarde"
+    assert context["peak_multiplier"] == 1.35
+    assert context["clock_time"] == "16:00"
 
 
 def test_demand_is_reproducible():

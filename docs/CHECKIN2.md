@@ -12,7 +12,7 @@ O protótipo atual usa uma estratégia híbrida:
 
 - **geografia oficial:** APIs de Malhas Territoriais do IBGE;
 - **rede viária:** OpenStreetMap integrado via Overpass API;
-- **demanda de tráfego atual:** sintética, controlada e reproduzível por seed.
+- **demanda de tráfego:** estimada por um fator relativo de população/densidade do IBGE e por um perfil de horários de pico, controlada e reproduzível por seed.
 
 > As taxas de chegada, a divisão entre sentidos e a composição carro/moto/ônibus são parâmetros sintéticos. Eles não devem ser apresentados como contagens reais de Aracaju.
 
@@ -39,9 +39,9 @@ O protótipo atual usa uma estratégia híbrida:
 - licença: **ODbL 1.0**;
 - atribuição: **© OpenStreetMap contributors**.
 
-A geometria da via vem do OSM, mas **o volume de tráfego não**. As taxas de chegada dos veículos continuam sendo sintéticas nesta etapa.
+A geometria da via vem do OSM, mas **o volume de tráfego não é observado diretamente**. O cenário usa taxas-base e calcula uma estimativa relativa com população/densidade do Censo 2022. Em seguida, aplica multiplicadores para madrugada, pico da manhã, entre-picos, pico da tarde e noite. Essa hipótese não substitui contagens, sensores ou matriz origem-destino.
 
-### Demanda sintética
+### Demanda estimada com IBGE
 
 Arquivo atual:
 
@@ -55,7 +55,9 @@ Ele registra:
 - taxas de chegada;
 - composição da frota;
 - divisão por sentido;
-- parâmetros do controlador.
+- parâmetros do controlador;
+- população e densidade de Aracaju no Censo 2022;
+- horário inicial e multiplicadores dos períodos de pico.
 
 ## Pipeline de pré-processamento
 
@@ -67,10 +69,12 @@ O pipeline executa:
 4. normalização da divisão por sentido;
 5. derivação das taxas por movimento;
 6. cálculo de intervalo médio entre chegadas;
-7. registro da seed;
-8. registro da proveniência;
-9. geração de um cenário pré-processado;
-10. geração de um relatório do Check-in 2.
+7. estimativa relativa da demanda com população e densidade do IBGE;
+8. aplicação de multiplicadores para horários de pico;
+9. registro da seed;
+10. registro da proveniência;
+11. geração de um cenário pré-processado;
+12. geração de um relatório do Check-in 2.
 
 Quando `--fetch-geography` é usado, ele também:
 

@@ -687,12 +687,12 @@ def draw_data_overlay(
     source_rows = [
         (
             "IBGE • Sergipe (UF 28)",
-            "API oficial de malhas • contexto geográfico",
+            "malha oficial • contexto e referência estadual",
             GREEN,
         ),
         (
             "IBGE • Aracaju (2800308)",
-            "API oficial de malhas • recorte municipal",
+            "malha + Censo 2022 • estimativa de demanda",
             GREEN,
         ),
         (
@@ -705,8 +705,8 @@ def draw_data_overlay(
             GREEN if osm_summary else YELLOW,
         ),
         (
-            "Demanda sintética",
-            "ativa no protótipo • seed reproduzível",
+            "Demanda estimada com IBGE",
+            "fator demográfico + perfil de horários de pico",
             BLUE,
         ),
     ]
@@ -756,12 +756,12 @@ def draw_data_overlay(
 
     steps = [
         "1. validar estrutura e tipos",
-        "2. validar taxas de chegada",
-        "3. normalizar carro / moto / ônibus",
-        "4. normalizar demanda por sentido",
-        "5. derivar taxas por movimento",
-        "6. fixar seed para reprodutibilidade",
-        "7. registrar proveniência",
+        "2. estimar demanda relativa com IBGE",
+        "3. aplicar perfil de horários de pico",
+        "4. normalizar carro / moto / ônibus",
+        "5. normalizar demanda por sentido",
+        "6. derivar taxas por movimento",
+        "7. fixar seed e registrar proveniência",
     ]
 
     y = section_y + 33
@@ -784,6 +784,7 @@ def draw_data_overlay(
 
     scenario_data = scenario.get("scenario", {})
     demand = scenario_data.get("demand", {})
+    ibge_demand = scenario_data.get("ibge_demand", {})
     controller = scenario_data.get("controller", {})
 
     summary = pygame.Rect(right_x, 495, 510, 176)
@@ -836,10 +837,21 @@ def draw_data_overlay(
     draw_text(
         screen,
         fonts,
-        "Atenção: as taxas de tráfego atuais são sintéticas.",
+        "Atenção: estimativa relativa; sem contagem de campo.",
         (summary.x + 18, summary.y + 136),
         "small",
         YELLOW,
+    )
+    draw_text(
+        screen,
+        fonts,
+        (
+            f"IBGE Censo 2022 • população {int(ibge_demand.get('population_2022', 0)):,} • "
+            f"início {ibge_demand.get('simulation_start_time', '--:--')}"
+        ).replace(",", "."),
+        (summary.x + 18, summary.y + 158),
+        "tiny",
+        MUTED,
     )
 
     if osm_summary:
@@ -1631,7 +1643,8 @@ def draw_panel(
         12,
         BORDER,
     )
-    draw_text(screen, fonts, "FROTA ATIVA • DADOS SINTÉTICOS", (left + 16, 672), "metric_label", MUTED)
+    demand_context = simulator.demand_context()
+    draw_text(screen, fonts, "FROTA ATIVA • DEMANDA IBGE", (left + 16, 672), "metric_label", MUTED)
     fleet_text = (
         f"Carros {simulator.active_count_by_type('car')}  •  "
         f"Motos {simulator.active_count_by_type('motorcycle')}  •  "
@@ -1639,6 +1652,17 @@ def draw_panel(
     )
     draw_text(screen, fonts, fleet_text, (left + 16, 696), "small", TEXT)
     draw_text(screen, fonts, f"Seed {seed} • composição configurável no cenário", (left + 16, 718), "tiny", MUTED)
+    draw_text(
+        screen,
+        fonts,
+        (
+            f"{demand_context['peak_label']} • {demand_context['clock_time']} • "
+            f"multiplicador {demand_context['peak_multiplier']:.2f}×"
+        ),
+        (left + 16, 733),
+        "tiny",
+        ACCENT,
+    )
 
     state = "PAUSADO" if paused else f"{speed_multiplier:g}×"
     audio_state = "ÁUDIO ON" if audio_enabled else "ÁUDIO OFF"

@@ -15,6 +15,17 @@
       "axis_barao_maynard_rate": 0.85,
       "axis_augusto_franco_rate": 0.75
     },
+    "ibge_demand": {
+      "enabled": true,
+      "source": "IBGE Censo 2022",
+      "municipality": "Aracaju",
+      "municipality_code": "2800308",
+      "population_2022": 602757,
+      "density_2022_hab_km2": 3308.89,
+      "reference_population_2022": 602757,
+      "reference_density_2022_hab_km2": 3308.89,
+      "simulation_start_time": "07:00"
+    },
     "controller": {
       "type": "fixed",
       "min_green_s": 15,

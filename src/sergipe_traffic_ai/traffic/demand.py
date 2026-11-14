@@ -3,6 +3,8 @@ from __future__ import annotations
 import random
 from typing import Any, Dict, List
 
+from sergipe_traffic_ai.traffic.ibge_demand import IBGEDemandModel
+
 
 BARAO_AXIS = "Av. Barão de Maruim / Des. Maynard"
 AUGUSTO_AXIS = "Av. Augusto Franco"
@@ -115,6 +117,9 @@ class TrafficDemandSimulator:
         self.rate_augusto_franco = demands.get(
             "axis_augusto_franco_rate",
             0.75,
+        )
+        self.ibge_demand = IBGEDemandModel(
+            self.config.get("ibge_demand")
         )
         self.vehicle_mix = self._normalize_vehicle_mix(
             demands.get("vehicle_mix", DEFAULT_VEHICLE_MIX)
@@ -256,7 +261,11 @@ class TrafficDemandSimulator:
         axis_rate: float,
         destination: str,
     ) -> Vehicle | None:
-        movement_rate = axis_rate * self.direction_split[movement]
+        effective_axis_rate = self.ibge_demand.effective_rate(
+            axis_rate,
+            self.current_time,
+        )
+        movement_rate = effective_axis_rate * self.direction_split[movement]
         if self.rng.random() >= movement_rate * self.time_step_s:
             return None
 
@@ -308,6 +317,10 @@ class TrafficDemandSimulator:
                 new_vehicles.append(vehicle)
 
         return new_vehicles
+
+    def demand_context(self) -> dict[str, Any]:
+        """Retorna a situação demográfica e horária usada pela demanda."""
+        return self.ibge_demand.context(self.current_time)
 
     @staticmethod
     def _axis_has_green(axis_name: str, phase: str | None) -> bool:

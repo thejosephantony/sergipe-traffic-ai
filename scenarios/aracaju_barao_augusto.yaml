@@ -22,7 +22,7 @@ scenario:
       - "Augusto Franco"
       - "Avenida Desembargador Maynard"
       - "Desembargador Maynard"
-    usage_note: "A rede viária é obtida do OSM; a demanda de tráfego continua sintética nesta etapa."
+    usage_note: "A rede viária é obtida do OSM; a demanda é estimada por um modelo relativo com indicadores do IBGE e permanece sem calibração de contagem de campo."
   seed: 42
   duration_s: 1800
   time_step_s: 0.2
@@ -40,6 +40,28 @@ scenario:
       augusto_northbound: 0.50
       augusto_southbound: 0.50
     direction_split_note: "Divisão sintética equilibrada entre sentidos para prototipagem."
+  ibge_demand:
+    enabled: true
+    source: "IBGE Censo 2022"
+    municipality: "Aracaju"
+    municipality_code: "2800308"
+    population_2022: 602757
+    density_2022_hab_km2: 3308.89
+    reference_population_2022: 602757
+    reference_density_2022_hab_km2: 3308.89
+    simulation_start_time: "07:00"
+    scaling:
+      population_exponent: 0.25
+      density_exponent: 0.25
+      minimum_factor: 0.75
+      maximum_factor: 1.25
+    peak_periods:
+      - {name: "madrugada", label: "Madrugada", start_hour: 0, end_hour: 6, multiplier: 0.60}
+      - {name: "pico_manha", label: "Pico da manhã", start_hour: 6, end_hour: 10, multiplier: 1.30}
+      - {name: "entre_picos", label: "Entre picos", start_hour: 10, end_hour: 16, multiplier: 0.90}
+      - {name: "pico_tarde", label: "Pico da tarde", start_hour: 16, end_hour: 20, multiplier: 1.35}
+      - {name: "noite", label: "Noite", start_hour: 20, end_hour: 24, multiplier: 0.70}
+    note: "População e densidade são fatores relativos para estimativa de demanda; não substituem contagens de tráfego."
   controller:
     type: fixed
     min_green_s: 15

@@ -29,6 +29,13 @@ SUMMARY = (
     / "comparison"
     / "controller_comparison_summary.json"
 )
+SENSITIVITY_SUMMARY = (
+    ROOT
+    / "experiments"
+    / "output"
+    / "sensitivity"
+    / "sensitivity_summary.json"
+)
 
 
 def lonlat_to_tile(lon: float, lat: float, zoom: int) -> tuple[float, float]:
@@ -226,6 +233,76 @@ def create_comparison_chart() -> Path:
     return path
 
 
+def create_sensitivity_chart() -> Path:
+    summary = json.loads(SENSITIVITY_SUMMARY.read_text(encoding="utf-8"))
+    labels = {
+        "FixedTrafficController": "Fixo",
+        "AdaptiveTrafficController": "Adaptativo",
+        "QLearningAgent": "Q-Learning",
+    }
+    colors = ["#6c757d", "#2a9d8f", "#e76f51"]
+    controllers = list(labels)
+    scenarios = [
+        ("base", "Base"),
+        ("pico_barao", "Pico\nBarão"),
+        ("pico_augusto", "Pico\nAugusto"),
+        ("frota_pesada", "Frota\npesada"),
+        ("prioridade_fluidez", "Prioridade\nfluidez"),
+    ]
+    metrics = [
+        ("average_completed_wait_s", "Espera média dos concluídos (s)", "menor é melhor"),
+        ("mean_queue", "Fila média (veículos)", "menor é melhor"),
+        ("throughput_per_min", "Throughput (veículos/min)", "maior é melhor"),
+    ]
+
+    fig, axes = plt.subplots(1, 3, figsize=(14, 5.4), dpi=180)
+    x = list(range(len(scenarios)))
+    width = 0.24
+    for ax, (metric, title, subtitle) in zip(axes, metrics):
+        for index, controller in enumerate(controllers):
+            means = []
+            stds = []
+            for scenario_id, _ in scenarios:
+                metric_data = summary["scenarios"][scenario_id]["controllers"][controller]["metrics"][metric]
+                means.append(metric_data["mean"])
+                stds.append(metric_data["std"])
+            offsets = [value + (index - 1) * width for value in x]
+            ax.bar(
+                offsets,
+                means,
+                width,
+                yerr=stds,
+                capsize=3,
+                color=colors[index],
+                alpha=0.9,
+                label=labels[controller],
+            )
+            for offset, value in zip(offsets, means):
+                ax.text(offset, value, f"{value:.1f}", ha="center", va="bottom", fontsize=7)
+        ax.set_xticks(x, [label for _, label in scenarios])
+        ax.set_title(title, fontsize=10, weight="bold", pad=10)
+        ax.grid(axis="y", alpha=0.25)
+        ax.set_axisbelow(True)
+        ax.text(0.5, 1.01, subtitle, transform=ax.transAxes, ha="center", fontsize=8, color="#5b6573")
+
+    axes[0].legend(loc="upper left", fontsize=8, framealpha=0.95)
+    fig.suptitle("Sensibilidade dos controladores em cinco cenários", fontsize=15, weight="bold")
+    fig.text(
+        0.5,
+        0.01,
+        "Média ± desvio-padrão em 20 episódios de 600 s por cenário; seeds 1000 a 1019",
+        ha="center",
+        fontsize=9,
+    )
+    fig.tight_layout(rect=(0, 0.05, 1, 0.92))
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    path = OUTPUT / "sensitivity_comparison.png"
+    fig.savefig(path, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
 if __name__ == "__main__":
     print(create_osm_map())
     print(create_comparison_chart())
+    print(create_sensitivity_chart())

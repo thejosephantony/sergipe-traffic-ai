@@ -10,7 +10,7 @@
       "scope": "geografia",
       "endpoint": "https://servicodados.ibge.gov.br/api/v3/malhas/estados/28?formato=application/vnd.geo+json&qualidade=minima",
       "identifier": "UF 28",
-      "usage": "Contextualização geográfica e validação do recorte estadual."
+      "usage": "Contextualização geográfica, validação do recorte estadual e referência demográfica para a estimativa relativa de demanda."
     },
     {
       "id": "ibge_aracaju_boundary",
@@ -20,7 +20,17 @@
       "scope": "geografia",
       "endpoint": "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/2800308?formato=application/vnd.geo+json&qualidade=minima",
       "identifier": "Município 2800308",
-      "usage": "Recorte do município usado como contexto do cenário piloto."
+      "usage": "Recorte do município usado como contexto do cenário piloto; população e densidade do Censo 2022 apoiam a estimativa relativa de demanda e os horários de pico."
+    },
+    {
+      "id": "ibge_aracaju_censo_2022",
+      "name": "IBGE Cidades e Estados - Aracaju",
+      "type": "official_reference",
+      "status": "reference_in_scenario",
+      "scope": "demografia",
+      "endpoint": "https://www.ibge.gov.br/cidades-e-estados/se/aracaju.html",
+      "identifier": "2800308",
+      "usage": "População 2022 e densidade demográfica usadas como fator relativo para estimar demanda e aplicar perfis de horário."
     },
     {
       "id": "openstreetmap_roads",
@@ -33,7 +43,7 @@
       "attribution": "© OpenStreetMap contributors",
       "usage": "Rede viária real do entorno do cenário: geometria, nomes, tipo highway, sentidos e atributos viários.",
       "provider": "Overpass API",
-      "note": "A rede viária vem do OSM; a demanda veicular permanece sintética."
+      "note": "A rede viária vem do OSM; a demanda é estimada com base relativa no IBGE, sem contagem de campo."
     },
     {
       "id": "synthetic_demand",
@@ -42,8 +52,8 @@
       "status": "active",
       "scope": "demanda_de_trafego",
       "path": "scenarios/aracaju_barao_augusto.json",
-      "usage": "Geração reproduzível de chegadas, composição da frota e divisão por sentido.",
-      "warning": "Não representa contagem real de veículos de Aracaju."
+      "usage": "Geração reproduzível de chegadas, composição da frota, divisão por sentido e variação por faixa horária.",
+      "warning": "A estimativa usa IBGE como fator relativo e não representa contagem real de veículos de Aracaju."
     }
   ]
 }

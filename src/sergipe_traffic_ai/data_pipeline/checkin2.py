@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import math
 import urllib.error
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from sergipe_traffic_ai.data_pipeline.osm import integrate_osm_network
+from sergipe_traffic_ai.traffic.ibge_demand import IBGEDemandModel
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -117,6 +119,43 @@ def preprocess_scenario(raw: dict[str, Any]) -> dict[str, Any]:
         movement: rate * duration_s
         for movement, rate in directional_rates.items()
     }
+    ibge_model = IBGEDemandModel(scenario.get("ibge_demand"))
+    average_peak_multiplier = ibge_model.average_multiplier(duration_s)
+    ibge_demand_summary = {
+        "enabled": ibge_model.enabled,
+        "source": "IBGE Censo 2022",
+        "municipality": scenario.get("ibge_demand", {}).get(
+            "municipality",
+            scenario.get("location", {}).get("city"),
+        ),
+        "municipality_code": scenario.get("ibge_demand", {}).get(
+            "municipality_code"
+        ),
+        "population_2022": ibge_model.population_2022,
+        "density_2022_hab_km2": ibge_model.density_2022,
+        "demographic_factor": ibge_model.demographic_factor,
+        "simulation_start_time": scenario.get("ibge_demand", {}).get(
+            "simulation_start_time",
+            "00:00",
+        ),
+        "average_peak_multiplier": average_peak_multiplier,
+        "start_period": ibge_model.period_at(0).name,
+        "start_multiplier": ibge_model.multiplier_at(0),
+        "method": (
+            "taxa-base × fator demográfico × multiplicador de faixa horária"
+        ),
+        "warning": (
+            "estimativa relativa; não substitui contagem de tráfego, "
+            "matriz origem-destino ou sensor de campo"
+        ),
+    }
+    expected_arrivals_with_ibge = {
+        movement: rate
+        * ibge_model.demographic_factor
+        * average_peak_multiplier
+        * duration_s
+        for movement, rate in directional_rates.items()
+    }
 
     return {
         "scenario_id": scenario["id"],
@@ -124,7 +163,10 @@ def preprocess_scenario(raw: dict[str, Any]) -> dict[str, Any]:
         "provenance": {
             "geography": "IBGE (ingestão opcional ao vivo)",
             "road_network": "OpenStreetMap via Overpass API (integração ativa)",
-            "traffic_demand": "sintético e reproduzível",
+            "traffic_demand": (
+                "estimado com fator relativo do IBGE e perfil horário; "
+                "sem contagem de campo"
+            ),
             "traffic_counts_real_world": False,
         },
         "road_network": {
@@ -149,7 +191,9 @@ def preprocess_scenario(raw: dict[str, Any]) -> dict[str, Any]:
             "directional_rates_veh_s": directional_rates,
             "mean_interarrival_s": mean_interarrival_s,
             "expected_arrivals_over_scenario": expected_arrivals,
+            "expected_arrivals_with_ibge_profile": expected_arrivals_with_ibge,
         },
+        "ibge_demand": ibge_demand_summary,
         "baseline": {
             "model": "fixed_time_traffic_signal",
             "machine_learning": False,
@@ -165,6 +209,8 @@ def preprocess_scenario(raw: dict[str, Any]) -> dict[str, Any]:
             "normalizar composição da frota",
             "normalizar divisão de demanda por sentido em cada eixo",
             "derivar taxa de chegada por movimento",
+            "estimar demanda relativa com população e densidade do IBGE",
+            "aplicar multiplicadores para horários de pico",
             "fixar seed para reprodutibilidade",
             "registrar proveniência e distinguir dado oficial de dado sintético",
         ],
@@ -225,7 +271,15 @@ def fetch_geojson(url: str, destination: Path) -> dict[str, Any]:
         headers={"User-Agent": "SergipeTrafficAI/0.1 academic-project"},
     )
     with urllib.request.urlopen(request, timeout=20) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+        raw = response.read()
+
+    # A API de Malhas do IBGE pode responder com gzip mesmo quando a
+    # requisição não declara explicitamente esse formato. Detectamos o
+    # cabeçalho mágico para manter a ingestão robusta em diferentes proxies.
+    if raw[:2] == b"\x1f\x8b":
+        raw = gzip.decompress(raw)
+
+    payload = json.loads(raw.decode("utf-8"))
 
     write_json(destination, payload)
     return payload
@@ -330,7 +384,7 @@ def print_summary(result: dict[str, Any]) -> None:
     print("1) FONTES DE DADOS")
     print("   • IBGE: malhas de Sergipe (UF 28) e Aracaju (2800308)")
     print("   • OpenStreetMap: rede viária integrada via Overpass API")
-    print("   • Demanda atual: sintética, configurada no cenário")
+    print("   • Demanda: estimada por IBGE + perfil horário, sem contagem de campo")
     osm_status = result["report"]["osm_ingestion"].get("status")
     if result["report"]["osm_ingestion"].get("requested"):
         print(f"   • OSM nesta execução: {osm_status}")

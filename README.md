@@ -20,15 +20,15 @@ O objetivo do projeto é estudar e comparar estratégias de controle semafórico
 | Visualização Pygame, métricas e painel OSM | Implementados |
 | Pedestres, ciclistas, ciclovia e veículos de emergência | **Planejados para v0.8; ainda não implementados** |
 
-**Importante:** ter um agente que aprende não significa que ele já superou o baseline. Qualquer conclusão de desempenho exige experimentos controlados com múltiplas seeds e métricas comparáveis. A demanda veicular atual é **sintética**, e o cenário ainda não foi calibrado com contagens de tráfego reais.
+**Importante:** ter um agente que aprende não significa que ele já superou o baseline. Qualquer conclusão de desempenho exige experimentos controlados com múltiplas seeds e métricas comparáveis. A demanda veicular é uma **estimativa relativa baseada no IBGE**, e o cenário ainda não foi calibrado com contagens de tráfego reais.
 
 ## Cenário e dados
 
 O cenário piloto é inspirado nos eixos **Avenida Augusto Franco** e **Avenida Desembargador Maynard / Barão de Maruim**, em Aracaju/SE. A referência geográfica é aproximada; o protótipo não é uma reprodução topográfica ou geométrica exata da interseção.
 
-- **IBGE:** contexto territorial de Sergipe e Aracaju, obtido opcionalmente no pipeline.
+- **IBGE:** limites territoriais, população/densidade do Censo 2022 e fatores relativos para estimar demanda e simular horários de pico.
 - **OpenStreetMap / Overpass API:** geometria e atributos da rede viária do entorno, quando disponíveis.
-- **Demanda sintética:** geração de veículos, composição da frota e divisão por sentido, com seeds reproduzíveis.
+- **Demanda estimada:** taxas-base, composição da frota e divisão por sentido com fator demográfico do IBGE e multiplicadores de horário, mantendo seeds reproduzíveis.
 
 O Pygame mantém um **cruzamento esquemático ampliado** para mostrar faixas, filas e semáforos. Quando o GeoJSON do OSM está disponível, ele aparece em um **painel cartográfico contextual**; os veículos da simulação não percorrem necessariamente as geometrias reais do OSM.
 
@@ -148,7 +148,9 @@ python -m sergipe_traffic_ai.data_pipeline.checkin2 --fetch-geography --fetch-os
 
 O pipeline salva os resultados em `experiments/output/checkin2/`. O GeoJSON esperado pelo Pygame fica em `experiments/output/checkin2/osm/osm_road_network.geojson`.
 
-Os dados de rede viária **não fornecem contagens reais de veículos**; a demanda continua sintética.
+Os dados do IBGE **não fornecem contagens reais de veículos**. O projeto usa população e densidade como fatores relativos sobre as taxas-base e aplica perfis de madrugada, pico da manhã, entre-picos, pico da tarde e noite. Essa estimativa não substitui contagens de campo.
+
+No cenário atual, a simulação começa às **07:00**, portanto o Pygame inicia no **pico da manhã**. O painel exibe o período e o multiplicador aplicado em tempo real.
 
 Documentação do Check-in: [docs/CHECKIN2.md](docs/CHECKIN2.md).
 
@@ -191,6 +193,7 @@ src/sergipe_traffic_ai/
 │   ├── q_learning.py              # Q-table e lógica de segurança
 │   └── rl_environment.py          # Ambiente RL causal
 ├── traffic/demand.py              # Chegadas e dinâmica veicular
+├── traffic/ibge_demand.py         # Fator demográfico e perfil horário IBGE
 ├── training/q_learning.py         # Loop de treinamento
 ├── data_pipeline/                 # IBGE, OSM e pré-processamento
 └── visual/                        # Pygame, sprites e painel OSM

@@ -1,9 +1,12 @@
+import gzip
+import json
 import math
 
 from sergipe_traffic_ai.data_pipeline.checkin2 import (
     normalize_weights,
     preprocess_scenario,
     summarize_geojson,
+    fetch_geojson,
 )
 
 
@@ -93,3 +96,32 @@ def test_summarize_geojson_extracts_bbox():
     assert result["feature_count"] == 1
     assert result["geometry_types"] == ["Polygon"]
     assert result["bbox_wgs84"] == [-37.1, -10.9, -37.0, -10.8]
+
+
+def test_fetch_geojson_accepts_gzip_response(monkeypatch, tmp_path):
+    payload = {
+        "type": "FeatureCollection",
+        "features": [],
+    }
+    compressed = gzip.compress(json.dumps(payload).encode("utf-8"))
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def read(self):
+            return compressed
+
+    monkeypatch.setattr(
+        "sergipe_traffic_ai.data_pipeline.checkin2.urllib.request.urlopen",
+        lambda request, timeout: FakeResponse(),
+    )
+
+    destination = tmp_path / "ibge.geojson"
+    result = fetch_geojson("https://example.invalid/ibge.geojson", destination)
+
+    assert result == payload
+    assert json.loads(destination.read_text(encoding="utf-8")) == payload

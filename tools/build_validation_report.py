@@ -23,6 +23,13 @@ SUMMARY_PATH = (
     / "comparison"
     / "controller_comparison_summary.json"
 )
+SENSITIVITY_SUMMARY_PATH = (
+    ROOT
+    / "experiments"
+    / "output"
+    / "sensitivity"
+    / "sensitivity_summary.json"
+)
 REPORT_FIGURES = ROOT / "experiments" / "output" / "report"
 CHECKIN_REPORT = (
     ROOT / "experiments" / "output" / "checkin2" / "checkin2_report.json"
@@ -294,6 +301,7 @@ def remove_paragraph_borders(paragraph) -> None:
 
 def build_report() -> Path:
     summary = json.loads(SUMMARY_PATH.read_text(encoding="utf-8"))
+    sensitivity = json.loads(SENSITIVITY_SUMMARY_PATH.read_text(encoding="utf-8"))
     json.loads(CHECKIN_REPORT.read_text(encoding="utf-8"))
     controllers = summary["controllers"]
     fixed = controllers["FixedTrafficController"]["metrics"]
@@ -356,7 +364,7 @@ def build_report() -> Path:
     doc.add_heading("Sumário executivo", level=1)
     add_body(
         doc,
-        "Este relatório consolida a etapa de validação do Sergipe Traffic AI. O cenário piloto é inspirado no cruzamento entre a Avenida Augusto Franco e a Avenida Desembargador Maynard / Barão de Maruim, em Aracaju. A rede viária real foi obtida do OpenStreetMap por meio da Overpass API; o IBGE fornece os limites oficiais e os indicadores demográficos usados para estimar a demanda relativa e simular horários de pico. As taxas-base continuam sendo uma hipótese de prototipagem, portanto os resultados medem eficiência dentro do simulador e não representam uma medição de campo.",
+        "Este relatório consolida a etapa de validação do Sergipe Traffic AI. O cenário piloto é inspirado no cruzamento entre a Avenida Augusto Franco e a Avenida Desembargador Maynard / Barão de Maruim, em Aracaju. A rede viária real foi obtida do OpenStreetMap por meio da Overpass API; o IBGE fornece os limites oficiais e os indicadores demográficos usados para estimar a demanda relativa. Os horários de pico são uma hipótese de modelagem baseada em faixas horárias, não uma série horária fornecida pelo IBGE. As taxas-base continuam sendo uma hipótese de prototipagem, portanto os resultados medem eficiência dentro do simulador e não representam uma medição de campo.",
     )
     add_body(
         doc,
@@ -372,12 +380,12 @@ def build_report() -> Path:
     add_body(doc, "Neste documento, os termos são usados assim: controle estático ou fixo é o ciclo de tempos predeterminados; controle dinâmico ou adaptativo é a heurística que observa filas e espera e troca de fase por regras; Q-learning é a política de aprendizado por reforço que solicita trocas a partir de estados discretizados. A máquina de segurança mantém amarelo, todos-vermelhos, tempo mínimo e tempo máximo de verde em todos os casos.")
 
     doc.add_heading("2 Dados e contexto territorial", level=1)
-    add_body(doc, "A integração de dados é híbrida. O IBGE fornece a referência territorial oficial, população e densidade do Censo 2022; o OpenStreetMap fornece a geometria e os atributos da rede viária; a demanda é estimada a partir de taxas-base, um fator demográfico relativo e um perfil de horários de pico. Ainda não há contagens observadas do cruzamento no projeto.")
+    add_body(doc, "A integração de dados é híbrida. O IBGE fornece a referência territorial oficial, população e densidade do Censo 2022; o OpenStreetMap fornece a geometria e os atributos da rede viária; a demanda é estimada a partir de taxas-base, um fator demográfico relativo e um perfil horário hipotético. Ainda não há contagens observadas do cruzamento no projeto, e o IBGE não disponibilizou nesta integração uma série horária específica para estimar diretamente os picos locais.")
     add_table(
         doc,
         ["Fonte", "Dado incorporado", "Uso no projeto"],
         [
-            ["IBGE", "Malhas de Sergipe e Aracaju; população 2022 de 602.757 habitantes e densidade de 3.308,89 hab/km².", "Limites oficiais, contexto demográfico, estimativa relativa da demanda e períodos de pico."],
+            ["IBGE", "Malhas de Sergipe e Aracaju; população 2022 de 602.757 habitantes e densidade de 3.308,89 hab/km².", "Limites oficiais, contexto demográfico e estimativa relativa da demanda."],
             ["OpenStreetMap / Overpass", "355 vias no raio de 800 m; 274 nomeadas; 129 com atributo one-way; avenidas do cenário encontradas.", "Mapa contextual e atributos da rede viária real."],
             ["Cenário sintético", "Taxas de chegada, composição da frota, divisão por sentido e seeds reproduzíveis.", "Geração controlada de demanda para comparar controladores."],
         ],
@@ -430,7 +438,7 @@ def build_report() -> Path:
             ["Demanda", "Taxas-base de 0,85 e 0,75 veículos/s; fator demográfico IBGE de 1,00 para Aracaju; início às 07:00 com multiplicador 1,30× no pico da manhã."],
             ["Frota", "72% carros, 18% motocicletas e 10% ônibus; composição sintética."],
             ["Simulação", "600 s por episódio, passo de 0,2 s, seeds 1000 a 1019; 20 episódios por controlador."],
-            ["Treinamento", "Q-learning tabular treinado por 200 episódios de 600 s; avaliação sem exploração, epsilon = 0."],
+            ["Treinamento", "Q-learning tabular treinado por 200 episódios no cenário-base e 100 episódios por cenário na sensibilidade; avaliação sem exploração, epsilon = 0."],
             ["Segurança", "Verde → amarelo → todos-vermelhos → verde oposto; mínimo 15 s, máximo 60 s de verde; amarelo 4 s e todos-vermelhos 2 s."],
         ],
         [1.55, 5.15],
@@ -453,7 +461,7 @@ def build_report() -> Path:
     doc.add_heading("3.2 Cenários de sensibilidade", level=2)
     add_body(
         doc,
-        "A tabela resume variações de pesos que podem ser usadas para demonstrar como o controlador reage a diferentes condições. São cenários propostos para a próxima rodada de experimentos; eles não foram misturados ao ranking apresentado na seção 4. Em cada linha, B/A representa a taxa de chegada nos eixos Barão/Maynard e Augusto Franco; C/M/O representa carro, motocicleta e ônibus; F/E/T representa os pesos de fila, espera e throughput na recompensa do Q-learning.",
+        "A análise foi executada nos cinco cenários abaixo, mantendo 20 seeds pareadas, 600 s por episódio e os três controladores. Em cada linha, B/A representa a taxa de chegada nos eixos Barão/Maynard e Augusto Franco; C/M/O representa carro, motocicleta e ônibus; F/E/T representa os pesos de fila, espera e throughput na recompensa do Q-learning. O Q-learning foi treinado separadamente por cenário para evitar reutilizar uma política calibrada em outra condição.",
     )
     add_table(
         doc,
@@ -467,7 +475,7 @@ def build_report() -> Path:
         ],
         [1.05, 1.35, 1.35, 1.55, 1.4],
     )
-    add_caption(doc, "Tabela 4. Resumo de pesos para análise de sensibilidade. Os cenários são propostas de teste, não resultados já executados.")
+    add_caption(doc, "Tabela 4. Configurações dos cinco cenários executados na análise de sensibilidade. Os valores definem as condições de teste; os resultados aparecem na seção 4.2.")
 
     doc.add_heading("4 Resultados da comparação", level=1)
     add_figure(
@@ -493,6 +501,75 @@ def build_report() -> Path:
     add_body(doc, f"A diferença entre Q-learning e adaptativo é pequena na média: o Q-learning teve {wait_q_vs_adaptive_pct:.2f}% menos espera e {queue_q_vs_adaptive_pct:.2f}% menos fila, mas {abs(throughput_q_vs_adaptive_pct):.2f}% menos throughput. Isso indica que, neste cenário e sob esta demanda, ambos se beneficiam de reagir às filas; o Q-learning favorece a redução da espera, enquanto a heurística adaptativa conclui ligeiramente mais veículos.")
     add_body(doc, "A leitura pareada deve ser interpretada como evidência de proximidade entre os dois métodos, não como uma superioridade absoluta. A conclusão depende do peso atribuído a espera, fila e throughput e deve ser reavaliada com mais seeds, horários e calibração observada.")
 
+    doc.add_page_break()
+    doc.add_heading("4.2 Resultados dos cenários de sensibilidade", level=2)
+    add_body(doc, "A figura e a tabela abaixo mostram os resultados efetivamente executados para as cinco configurações da Tabela 4. As barras apresentam a média dos 20 episódios e as linhas de erro representam o desvio-padrão entre as seeds. A comparação permite verificar se a conclusão do cenário-base permanece estável quando se altera o desequilíbrio de demanda, a composição da frota ou a função de recompensa.")
+    add_figure(
+        doc,
+        REPORT_FIGURES / "sensitivity_comparison.png",
+        6.2,
+        "Figura 3. Comparação dos três controladores nos cinco cenários de sensibilidade; média ± desvio-padrão em 20 episódios por cenário.",
+    )
+
+    scenario_order = ["base", "pico_barao", "pico_augusto", "frota_pesada", "prioridade_fluidez"]
+    controller_order = ["FixedTrafficController", "AdaptiveTrafficController", "QLearningAgent"]
+    controller_labels = {
+        "FixedTrafficController": "Fixo",
+        "AdaptiveTrafficController": "Adaptativo",
+        "QLearningAgent": "Q-learning",
+    }
+    sensitivity_rows = []
+    winner_rows = []
+    for scenario_id in scenario_order:
+        scenario_data = sensitivity["scenarios"][scenario_id]
+        controller_data = scenario_data["controllers"]
+        for controller in controller_order:
+            metrics = controller_data[controller]["metrics"]
+            sensitivity_rows.append(
+                [
+                    scenario_data["label"],
+                    controller_labels[controller],
+                    f"{metrics['average_completed_wait_s']['mean']:.2f} ± {metrics['average_completed_wait_s']['std']:.2f}",
+                    f"{metrics['mean_queue']['mean']:.2f} ± {metrics['mean_queue']['std']:.2f}",
+                    f"{metrics['throughput_per_min']['mean']:.2f} ± {metrics['throughput_per_min']['std']:.2f}",
+                ]
+            )
+        wait_winner = min(
+            controller_order,
+            key=lambda controller: controller_data[controller]["metrics"]["average_completed_wait_s"]["mean"],
+        )
+        queue_winner = min(
+            controller_order,
+            key=lambda controller: controller_data[controller]["metrics"]["mean_queue"]["mean"],
+        )
+        throughput_winner = max(
+            controller_order,
+            key=lambda controller: controller_data[controller]["metrics"]["throughput_per_min"]["mean"],
+        )
+        winner_rows.append(
+            [
+                scenario_data["label"],
+                controller_labels[wait_winner],
+                controller_labels[queue_winner],
+                controller_labels[throughput_winner],
+            ]
+        )
+    add_table(
+        doc,
+        ["Cenário", "Controlador", "Espera média (s)", "Fila média", "Throughput (veh/min)"],
+        sensitivity_rows,
+        [1.35, 1.2, 1.45, 1.2, 1.7],
+    )
+    add_caption(doc, "Tabela 6. Resultados médios ± desvio-padrão dos cinco cenários executados. Menor é melhor para espera e fila; maior é melhor para throughput.")
+    add_table(
+        doc,
+        ["Cenário", "Menor espera", "Menor fila", "Maior throughput"],
+        winner_rows,
+        [1.65, 1.65, 1.65, 1.75],
+    )
+    add_caption(doc, "Tabela 7. Controlador vencedor em cada métrica por cenário. Empates aproximados não são tratados como superioridade absoluta.")
+    add_body(doc, "Síntese: o adaptativo foi o controlador mais consistente nos cenários de desequilíbrio de demanda e na frota pesada, enquanto o Q-learning teve os melhores valores de espera no cenário-base e no cenário de prioridade de fluidez. O adaptativo liderou throughput em todos os cenários. A frota pesada aumentou a espera e reduziu o throughput dos três métodos, indicando que a composição veicular é uma variável relevante para a robustez do controlador.")
+
     doc.add_heading("5 Discussão e decisão", level=1)
     add_body(doc, "Decisão recomendada: classificar o Q-learning como o controlador preferível quando a prioridade do cenário for reduzir espera e fila. O adaptativo deve permanecer como alternativa operacional explicável, pois alcançou o maior throughput médio neste recorte. Ambos mantêm a mesma camada de segurança que impede saltos diretos entre verdes conflitantes.", bold_lead="Decisão recomendada: ")
     add_body(doc, "A decisão deve ser apresentada com uma ressalva: o ganho adicional do Q-learning sobre o adaptativo é modesto. O adaptativo é mais simples de explicar, não depende de treinamento e é uma boa alternativa de fallback. Em uma implantação real, seria razoável operar com o adaptativo como baseline operacional e habilitar o Q-learning somente depois de calibração com dados observados, testes de segurança e monitoramento de desempenho.")
@@ -502,8 +579,9 @@ def build_report() -> Path:
     add_bullet(doc, "A demanda é uma estimativa relativa: as taxas-base, a composição da frota e a divisão por sentido foram definidas para prototipagem; população e densidade do IBGE apenas modulam o cenário e não são contagens de tráfego.")
     add_bullet(doc, "O OSM fornece rede viária, nomes e atributos geométricos; não fornece, por si só, volume de tráfego, tempo de espera ou distribuição observada de veículos.")
     add_bullet(doc, "A interseção simulada é esquemática e ampliada. A geometria OSM é contextual e ainda não é percorrida pelos veículos do motor de simulação.")
-    add_bullet(doc, "A comparação usa 20 seeds e um único regime de demanda de 600 s. A conclusão é válida para este experimento; não deve ser extrapolada diretamente para a operação real de Aracaju.")
-    add_bullet(doc, "O documento apresenta médias e desvios-padrão; ainda é recomendável acrescentar intervalos de confiança, testes pareados e análise de sensibilidade dos hiperparâmetros.")
+    add_bullet(doc, "A comparação base e a análise de sensibilidade usam 20 seeds e episódios de 600 s. A conclusão é válida para estes experimentos; não deve ser extrapolada diretamente para a operação real de Aracaju.")
+    add_bullet(doc, "Os multiplicadores de pico (1,30× e 1,35×) são hipóteses de modelagem para simular horários de maior demanda; o IBGE não forneceu contagens horárias do cruzamento. A calibração com dados observados continua necessária.")
+    add_bullet(doc, "O documento apresenta médias e desvios-padrão; ainda é recomendável acrescentar intervalos de confiança, testes pareados, 100 ou mais seeds e uma varredura mais ampla dos hiperparâmetros.")
     add_bullet(doc, "Pedestres, ciclistas, ciclovias e veículos de emergência ainda não estão implementados no ambiente avaliado.")
 
     doc.add_heading("7 Próximos passos recomendados", level=1)
@@ -526,6 +604,7 @@ def build_report() -> Path:
         "python -m sergipe_traffic_ai.data_pipeline.checkin2 --fetch-geography --fetch-osm",
         "python experiments/train_q_learning.py",
         "python experiments/compare_controllers.py --seeds 20 --seed-start 1000 --duration 600",
+        "python experiments/run_sensitivity_analysis.py --seeds 20 --seed-start 1000 --train-episodes 100 --duration 600",
         "python tools/create_report_figures.py",
     ]
     for command in commands:
@@ -544,7 +623,6 @@ def build_report() -> Path:
     add_source_link(doc, "OpenStreetMap Wiki — Overpass API", "https://wiki.openstreetmap.org/wiki/Overpass_API")
     add_body(doc, "Atribuição cartográfica: © OpenStreetMap contributors. Os dados do OpenStreetMap são distribuídos sob a ODbL 1.0. O IBGE é a fonte dos recortes territoriais e indicadores demográficos usados no contexto e na estimativa relativa da demanda. A rede viária foi consultada em 14 de novembro de 2026; os dados OSM podem mudar com novas edições.")
 
-    doc.add_page_break()
     doc.add_heading("10 Checklist de encerramento do projeto", level=1)
     add_table(
         doc,
@@ -556,6 +634,7 @@ def build_report() -> Path:
             ["Controlador adaptativo", "Implementado como heurística dinâmica sem aprendizado."],
             ["Q-learning", "Treinado, salvo em JSON e avaliado sem exploração."],
             ["Comparação controlada", "Concluída em 20 seeds pareadas; Q-learning liderou espera/fila e adaptativo liderou throughput."],
+            ["Análise de sensibilidade", "Concluída em 5 cenários, 20 seeds por cenário e 3 controladores; tabelas e gráficos incorporados ao relatório."],
             ["Próxima versão acadêmica", "Calibração com contagens reais, mais cenários e mobilidade multimodal."],
         ],
         [2.2, 4.7],

@@ -1,0 +1,97 @@
+[
+  {
+    "id": "base",
+    "label": "Base",
+    "objective": "Referência atual",
+    "demand": {
+      "axis_barao_maynard_rate": 0.85,
+      "axis_augusto_franco_rate": 0.75
+    },
+    "vehicle_mix": {
+      "car": 0.72,
+      "motorcycle": 0.18,
+      "bus": 0.10
+    },
+    "reward": {
+      "reward_queue_weight": 1.0,
+      "reward_wait_weight": 0.05,
+      "reward_throughput_weight": 0.50
+    }
+  },
+  {
+    "id": "pico_barao",
+    "label": "Pico Barão",
+    "objective": "Testar desequilíbrio para Barão",
+    "demand": {
+      "axis_barao_maynard_rate": 1.10,
+      "axis_augusto_franco_rate": 0.60
+    },
+    "vehicle_mix": {
+      "car": 0.72,
+      "motorcycle": 0.18,
+      "bus": 0.10
+    },
+    "reward": {
+      "reward_queue_weight": 1.0,
+      "reward_wait_weight": 0.05,
+      "reward_throughput_weight": 0.50
+    }
+  },
+  {
+    "id": "pico_augusto",
+    "label": "Pico Augusto",
+    "objective": "Testar desequilíbrio para Augusto",
+    "demand": {
+      "axis_barao_maynard_rate": 0.60,
+      "axis_augusto_franco_rate": 1.00
+    },
+    "vehicle_mix": {
+      "car": 0.72,
+      "motorcycle": 0.18,
+      "bus": 0.10
+    },
+    "reward": {
+      "reward_queue_weight": 1.0,
+      "reward_wait_weight": 0.05,
+      "reward_throughput_weight": 0.50
+    }
+  },
+  {
+    "id": "frota_pesada",
+    "label": "Frota pesada",
+    "objective": "Avaliar efeito de ônibus",
+    "demand": {
+      "axis_barao_maynard_rate": 0.85,
+      "axis_augusto_franco_rate": 0.75
+    },
+    "vehicle_mix": {
+      "car": 0.55,
+      "motorcycle": 0.15,
+      "bus": 0.30
+    },
+    "reward": {
+      "reward_queue_weight": 1.0,
+      "reward_wait_weight": 0.05,
+      "reward_throughput_weight": 0.50
+    }
+  },
+  {
+    "id": "prioridade_fluidez",
+    "label": "Prioridade fluidez",
+    "objective": "Valorizar veículos concluídos",
+    "demand": {
+      "axis_barao_maynard_rate": 0.85,
+      "axis_augusto_franco_rate": 0.75
+    },
+    "vehicle_mix": {
+      "car": 0.72,
+      "motorcycle": 0.18,
+      "bus": 0.10
+    },
+    "reward": {
+      "reward_queue_weight": 0.70,
+      "reward_wait_weight": 0.03,
+      "reward_throughput_weight": 1.00
+    }
+  }
+]
